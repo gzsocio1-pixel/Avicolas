@@ -1,0 +1,33 @@
+# Configuración para Render (Blueprint).
+# Crea el servicio web y la base de datos PostgreSQL de una sola vez.
+services:
+  - type: web
+    name: control-de-galeras
+    runtime: node
+    region: virginia
+    # "free" se duerme tras 15 minutos sin uso (la primera carga tarda ~1 minuto).
+    # Cambia a "starter" (unos US$7/mes) para que esté siempre encendido.
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /salud
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: control-de-galeras-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_USER
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+
+databases:
+  - name: control-de-galeras-db
+    region: virginia
+    plan: basic-256mb
+    databaseName: granja
+    user: granja
