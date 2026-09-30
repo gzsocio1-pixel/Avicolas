@@ -1,7 +1,7 @@
 # Control de Galeras
 
-Panel de control avícola: parvadas, pesos y mortalidad por galera, cierre y liquidación Cargill,
-costos por parvada, detalle de pagos, flujo mensual, resultados anuales e importación desde Excel.
+Panel de control avícola de **Avícola San Isidro** y **Granja Pío Pío**: parvadas, pesos y mortalidad por galera, cierre y liquidación Cargill,
+costos por parvada, detalle de pagos, flujo mensual, resultados anuales e importación desde Excel y reporte semanal comparando todas las parvadas.
 
 Funciona con **Node.js** y guarda los datos en **PostgreSQL**. Cada persona entra con su usuario
 y contraseña.
@@ -38,8 +38,8 @@ y contraseña.
 
 1. Entra con el usuario y contraseña del paso anterior.
 2. Toca **Usuarios** (arriba a la derecha) → **Restaurar desde respaldo…**
-3. Elige el archivo `respaldo-control-de-galeras.json`. En segundos aparecen tus 31 parvadas,
-   pagos, costos y flujo mensual.
+3. Elige el archivo `respaldo-control-de-galeras.json`. En segundos aparecen las parvadas de las dos granjas
+   (San Isidro y Pío Pío), pagos, costos y flujo mensual.
 
 ### Paso 4. Agregar a tu equipo
 
@@ -58,7 +58,7 @@ En **Usuarios** también ves quién cambió qué y cuándo.
 
 ## Uso diario
 
-- **Actualizar con Excel:** pestaña **Importar Excel**. Sube el Comparativo y/o el Flujo ASI,
+- **Actualizar con Excel:** pestaña **Importar Excel**. Elige la granja arriba, sube el Comparativo y/o el Flujo de esa granja,
   revisa la lista de cambios y toca **Guardar**.
 - **Respaldo:** una vez al mes, en **Usuarios** → **Descargar respaldo**. Guárdalo fuera de GitHub.
 - **Cambios al programa:** si alguien modifica los archivos en GitHub, Render publica la nueva

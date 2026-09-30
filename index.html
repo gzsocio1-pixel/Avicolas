@@ -1,0 +1,1748 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="/icono.svg" type="image/svg+xml">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;background:#f6f6f4}img{max-width:100%}[hidden]{display:none!important}</style>
+<script src="/shim.js"></script>
+</head>
+<body>
+<title>Control de Galeras</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: barra de control fija (granja · parvada · pestañas) sobre un tablero de lectura; tablas con scroll propio */
+:root{
+  --bg:#f3f5f2; --panel:#ffffff; --panel-2:#eaeee8; --line:#d6dcd3; --ink:#18201b; --ink-2:#4b564e; --ink-3:#77827a;
+  --accent:#1d6a52; --accent-ink:#ffffff; --accent-soft:#dcebe4;
+  --s1:#2a78d6; --hist:#8b958d; --band:#e2e7e0;
+  --good:#1a7f4b; --good-bg:#dff1e6; --warn:#a66300; --warn-bg:#fbeccc; --bad:#c23b3a; --bad-bg:#f8dcdb;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121614; --panel:#1a1f1c; --panel-2:#232a26; --line:#313a35; --ink:#eef2ee; --ink-2:#b7c0b9; --ink-3:#8a948d;
+  --accent:#5cc49c; --accent-ink:#0d1a14; --accent-soft:#1f3a2f;
+  --s1:#3987e5; --hist:#7f8a83; --band:#27302b;
+  --good:#5fcf8f; --good-bg:#183526; --warn:#f0b04a; --warn-bg:#3a2d12; --bad:#f07b79; --bad-bg:#3d1c1c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121614; --panel:#1a1f1c; --panel-2:#232a26; --line:#313a35; --ink:#eef2ee; --ink-2:#b7c0b9; --ink-3:#8a948d;
+  --accent:#5cc49c; --accent-ink:#0d1a14; --accent-soft:#1f3a2f;
+  --s1:#3987e5; --hist:#7f8a83; --band:#27302b;
+  --good:#5fcf8f; --good-bg:#183526; --warn:#f0b04a; --warn-bg:#3a2d12; --bad:#f07b79; --bad-bg:#3d1c1c; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45}
+.wrap{max-width:1240px;margin:0 auto;padding-inline:16px;padding-block:0 48px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0}
+h1{font-size:20px;font-weight:800;letter-spacing:-.01em}
+h2{font-size:16px;font-weight:700}
+h3{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-2)}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.muted{color:var(--ink-3)}
+/* Top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
+.top-in{max-width:1240px;margin:0 auto;padding:12px 16px 0;display:flex;flex-direction:column;gap:10px}
+.brand{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between}
+.brand-l{display:flex;align-items:center;gap:10px}
+.mark{width:30px;height:30px;border-radius:7px;background:var(--accent);display:grid;place-items:center;flex:none}
+.mark svg{width:18px;height:18px}
+.pickers{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+select,input,button{font:inherit;color:inherit}
+select,input[type=text],input[type=date],input[type=number]{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 9px;min-height:34px}
+select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.tab{background:none;border:0;border-bottom:2px solid transparent;padding:8px 12px 9px;font-family:var(--f-display);font-weight:600;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.tab[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 12px;cursor:pointer;font-weight:500;min-height:34px}
+.btn:hover{border-color:var(--ink-3)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+/* Sections */
+section.view{display:flex;flex-direction:column;gap:18px;padding-top:18px}
+.flock-head{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline}
+.flock-head h2{font-size:22px;font-weight:800}
+.meta{display:flex;flex-wrap:wrap;gap:4px 16px;color:var(--ink-2)}
+.meta b{font-weight:600;color:var(--ink)}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--panel-2);color:var(--ink-2)}
+.pill.good{background:var(--good-bg);color:var(--good)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.bad{background:var(--bad-bg);color:var(--bad)}
+.pill.live::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:860px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.kpi .lab{font-size:12px;color:var(--ink-2);font-weight:500}
+.kpi .val{font-family:var(--f-num);font-size:24px;font-weight:500;letter-spacing:-.02em;line-height:1.1}
+.kpi .val small{font-size:12px;color:var(--ink-3);margin-left:3px}
+.kpi .sub{font-size:12px;color:var(--ink-3);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.grid2{display:grid;grid-template-columns:3fr 2fr;gap:14px}
+@media (max-width:860px){.grid2{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink-2)}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+.legend i.band{height:10px;border-radius:2px}
+.chart{position:relative;width:100%}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart text{font-family:var(--f-num);font-size:11px;fill:var(--ink-3)}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);padding:7px 9px;border-radius:6px;font-size:12px;line-height:1.35;white-space:nowrap;z-index:5;transform:translate(-50%,-100%);margin-top:-8px}
+.tip b{font-weight:600}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:7px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th{font-family:var(--f-display);font-weight:600;font-size:12px;color:var(--ink-2);background:var(--panel-2);position:sticky;top:0}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:inherit}
+td:first-child{background:var(--panel);font-weight:600}
+tbody tr:last-child td{border-bottom:0}
+td.num{font-family:var(--f-num)}
+tr.total td{font-weight:600;background:var(--panel-2)}
+tr.click{cursor:pointer}
+tr.click:hover td{background:var(--accent-soft)}
+tr.sel td{background:var(--accent-soft)}
+.up{color:var(--good)} .dn{color:var(--bad)} .wn{color:var(--warn)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 11px;cursor:pointer;font-size:13px}
+.chip[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.cap-grid input{width:100%;min-width:84px;text-align:right;font-family:var(--f-num)}
+.cap-grid td{padding:5px 8px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ink-2)}
+.note{font-size:12.5px;color:var(--ink-2);max-width:72ch}
+.banner{border:1px solid var(--line);background:var(--panel-2);border-radius:var(--r);padding:10px 12px;font-size:13px;color:var(--ink-2)}
+.banner.warn{background:var(--warn-bg);border-color:transparent;color:var(--warn)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:8px;font-weight:500;z-index:50}
+.empty{padding:40px 16px;text-align:center;color:var(--ink-2);display:flex;flex-direction:column;gap:10px;align-items:center}
+.alerts{display:flex;flex-direction:column;gap:6px}
+.alert{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:9px 12px;border-radius:6px;background:var(--panel-2);cursor:pointer}
+.alert:hover{outline:1px solid var(--ink-3)}
+.alert .dot{width:9px;height:9px;border-radius:50%;background:var(--ink-3)}
+.alert.bad .dot{background:var(--bad)} .alert.warn .dot{background:var(--warn)} .alert.good .dot{background:var(--good)}
+.alert .lvl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.alert.bad .lvl{color:var(--bad)} .alert.warn .lvl{color:var(--warn)} .alert.info .lvl{color:var(--ink-2)}
+.alert .who{font-size:12px;color:var(--ink-3);white-space:nowrap}
+.alert .txt{min-width:0}
+@media (max-width:640px){.alert{grid-template-columns:auto 1fr}.alert .who{grid-column:2;white-space:normal}}
+.acts{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.act{cursor:pointer}
+.act:hover{border-color:var(--ink-3)}
+.prog{height:6px;border-radius:3px;background:var(--panel-2);overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent);border-radius:3px}
+.mini{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px}
+.mini div{display:flex;flex-direction:column;gap:1px;min-width:0}
+.mini span{font-size:11.5px;color:var(--ink-3)}
+.mini b{font-family:var(--f-num);font-weight:500;font-size:15px}
+.mini em{font-style:normal;font-size:11.5px}
+td.spark{padding:2px 10px}
+td.spark svg{display:block}
+.sec{font-family:var(--f-display);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);background:var(--panel)!important;text-align:left!important;padding-top:12px}
+.glossary{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px 18px;font-size:12.5px;color:var(--ink-2)}
+.glossary b{color:var(--ink);font-weight:600}
+@media (prefers-reduced-motion:no-preference){.tab,.chip,.btn{transition:background .15s,border-color .15s,color .15s}}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media (max-width:1000px){.grid3{grid-template-columns:1fr}}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:1000px){.grid4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:520px){.grid4{grid-template-columns:1fr}}
+.kv{display:grid;grid-template-columns:1fr auto;gap:5px 14px;font-size:13px}
+.kv span{color:var(--ink-2)}
+.kv b{font-family:var(--f-num);font-weight:500;text-align:right}
+.kv .hr{grid-column:1/-1;border-top:1px solid var(--line);margin:3px 0}
+.kv .strong{color:var(--ink);font-weight:600}
+.hbar{display:grid;grid-template-columns:minmax(110px,170px) 1fr auto;gap:6px 10px;align-items:center;font-size:12.5px}
+.hbar .bar{height:10px;background:var(--panel-2);border-radius:3px;overflow:hidden}
+.hbar .bar i{display:block;height:100%;background:var(--s1);border-radius:3px}
+.hbar b{font-family:var(--f-num);font-weight:500}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{border:0;background:var(--panel);padding:5px 11px;cursor:pointer;font-size:13px}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.kpi.big .val{font-size:26px}
+.delta{font-family:var(--f-num);font-size:12px}
+.yr-now{background:var(--accent-soft)!important}
+.src{font-size:11.5px;color:var(--ink-3)}
+.close-form{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.close-form input{text-align:right;font-family:var(--f-num)}
+.grid2.eq{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:860px){.grid2.eq{grid-template-columns:1fr}}
+a{color:var(--accent)}
+.drop{cursor:pointer;border-style:dashed;border-width:2px}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+details summary{cursor:pointer;padding:6px 0}
+.obs{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:9px;max-width:95ch;line-height:1.5}
+.obs b{font-family:var(--f-display)}
+.sim-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.userbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.userbar .who-me{display:flex;flex-direction:column;line-height:1.15;text-align:right}
+.userbar .who-me small{color:var(--ink-3);font-size:11.5px}
+a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center}
+</style>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <div class="brand-l">
+        <div class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-ink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M9 20v-5h6v5"/></svg></div>
+        <div><h1>Control de Galeras</h1><div class="muted" style="font-size:12px" id="syncState">Conectando…</div></div>
+      </div>
+      <div class="pickers">
+        <select id="farmSel" aria-label="Granja"></select>
+        <select id="flockSel" aria-label="Parvada"></select>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="panel" aria-selected="true">Panel</button>
+      <button class="tab" role="tab" data-tab="anual" aria-selected="false">Resultados anuales</button>
+      <button class="tab" role="tab" data-tab="flujo" aria-selected="false">Flujo mensual</button>
+      <button class="tab" role="tab" data-tab="reporte" aria-selected="false">Reporte de parvada</button>
+      <button class="tab" role="tab" data-tab="semanal" aria-selected="false">Reporte semanal</button>
+      <button class="tab" role="tab" data-tab="comparativo" aria-selected="false">Comparativo</button>
+      <button class="tab" role="tab" data-tab="costos" aria-selected="false">Costos</button>
+      <button class="tab" role="tab" data-tab="pagos" aria-selected="false">Pagos</button>
+      <button class="tab" role="tab" data-tab="apendice" aria-selected="false">Apéndice</button>
+      <button class="tab" role="tab" data-tab="importar" aria-selected="false">Importar Excel</button>
+      <button class="tab" role="tab" data-tab="captura" aria-selected="false">Captura</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="view" id="v-panel"></section>
+  <section class="view" id="v-anual" hidden></section>
+  <section class="view" id="v-flujo" hidden></section>
+  <section class="view" id="v-reporte" hidden></section>
+  <section class="view" id="v-semanal" hidden></section>
+  <section class="view" id="v-comparativo" hidden></section>
+  <section class="view" id="v-costos" hidden></section>
+  <section class="view" id="v-pagos" hidden></section>
+  <section class="view" id="v-apendice" hidden></section>
+  <section class="view" id="v-importar" hidden></section>
+  <section class="view" id="v-captura" hidden></section>
+</main>
+<div class="toast" id="toast" hidden></div>
+<script>
+(function(){
+"use strict";
+/* Cada granja numera sus parvadas corrido (P1, P2…). Un año Cargill = 7 parvadas.
+   Pío Pío: el Año 1 tuvo solo 2 parvadas (P1–P2); desde el Año 2 son 7 por año. */
+const FARMS=[
+  {id:"SI",name:"Avícola San Isidro",y0:2021,cycOf:n=>Math.floor((n-1)/7)+1,cycStart:c=>(c-1)*7+1,note:""},
+  {id:"PP",name:"Granja Pío Pío",y0:2023,cycOf:n=>n<=2?1:Math.floor((n-3)/7)+2,cycStart:c=>c<=1?1:3+(c-2)*7,note:" (el Año 1 tuvo solo 2 parvadas)"}];
+const FC=id=>FARMS.find(x=>x.id===id)||FARMS[0];
+const cycOf=(n,farm)=>FC(farm||S.farm).cycOf(n);
+const cycStart=(c,farm)=>FC(farm||S.farm).cycStart(c);
+const G=10, WEEKS=7, LB2KG=0.45359237, QQ=100, M2=2916; /* galera 162 × 18 m */
+/* Tabla de pago Cargill 2025 */
+const PAY={mejora:0.0086,inv:0.012,
+  base:[[0,4.49,0.042],[4.5,5.35,0.041],[5.36,5.45,0.0416],[5.46,5.55,0.0422],[5.56,5.65,0.0428],[5.66,12,0.0434]],
+  fcr:{"1.70":-0.0095,"1.69":-0.0085,"1.68":-0.0076,"1.67":-0.0066,"1.66":-0.0057,"1.65":-0.0047,"1.64":-0.0038,"1.63":-0.0028,"1.62":-0.0019,"1.61":-0.0009,"1.60":0,"1.59":0.0101,"1.58":0.011,"1.57":0.0119,"1.56":0.0128,"1.55":0.0137,"1.54":0.0146,"1.53":0.0155,"1.52":0.0164,"1.51":0.0173,"1.50":0.0182,"1.49":0.0191,"1.48":0.02,"1.47":0.0209,"1.46":0.0218,"1.45":0.0227,"1.44":0.0236,"1.43":0.0245,"1.42":0.0254,"1.41":0.0227}};
+function pay(w,fcr){
+  if(!(w>0)||!(fcr>0))return null;
+  const b=PAY.base.find(r=>w>=r[0]&&w<=r[1]+0.0099)||PAY.base[PAY.base.length-1];
+  let k=Math.round(fcr*100)/100;k=Math.min(1.70,Math.max(1.41,k));
+  const bf=PAY.fcr[k.toFixed(2)]??0;
+  return {base:b[2],mejora:PAY.mejora,inv:PAY.inv,bfcr:bf,total:b[2]+PAY.mejora+PAY.inv+bf,fcrKey:k};
+}
+const $=s=>document.querySelector(s);
+const S={flocks:new Map(),years:new Map(),pay:new Map(),cash:new Map(),cashPer:null,imp:null,costCyc:null,pf:null,delPay:null,farm:"SI",sel:null,tab:"panel",gWeek:null,capMode:1,chartMetric:"wFinal",db:null,dl:null,loaded:false,readonly:false,draft:null,confirmDel:false,sim:null,panelChart:"margin"};
+try{const t=localStorage.getItem("cg.tab");if(t)S.tab=t;const f=localStorage.getItem("cg.farm");if(f&&FARMS.some(x=>x.id===f))S.farm=f;}catch(e){}
+
+/* ---------- utilidades ---------- */
+const ok=v=>v!==null&&v!==undefined&&v!==""&&!isNaN(v);
+const vals=a=>(a||[]).filter(ok).map(Number);
+const mean=a=>{const v=vals(a);return v.length?v.reduce((x,y)=>x+y,0)/v.length:null};
+const sum=a=>{const v=vals(a);return v.length?v.reduce((x,y)=>x+y,0):null};
+const sd=a=>{const v=vals(a);if(v.length<2)return null;const m=mean(v);return Math.sqrt(v.reduce((s,x)=>s+(x-m)**2,0)/(v.length-1))};
+const first=(...a)=>{for(const v of a)if(ok(v))return +v;return null};
+const fx=(v,d=2)=>ok(v)?Number(v).toLocaleString("es-NI",{minimumFractionDigits:d,maximumFractionDigits:d}):"—";
+const fi=v=>ok(v)?Math.round(v).toLocaleString("es-NI"):"—";
+const pct=(v,d=2)=>ok(v)?fx(v,d)+"%":"—";
+const usd=(v,d=0)=>ok(v)?(v<0?"−":"")+"$"+fx(Math.abs(v),d):"—";
+const usdk=v=>ok(v)?(Math.abs(v)>=1e6?usd(v/1e6,2)+" mill.":Math.abs(v)>=1e4?usd(v/1e3,0)+" mil":usd(v,0)):"—";
+const lbk=v=>ok(v)?(v>=1e6?fx(v/1e6,2)+" mill.":fi(v)):"—";
+const MES=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+const pd=s=>{if(!s)return null;const [y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
+const fd=s=>{const d=pd(s);return d?d.getDate()+" "+MES[d.getMonth()]+" "+d.getFullYear():"—"};
+const fdShort=s=>{const d=pd(s);return d?d.getDate()+" "+MES[d.getMonth()]+" "+String(d.getFullYear()).slice(2):"—"};
+const days=(a,b)=>Math.round((pd(b)-pd(a))/864e5);
+const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const todayStr=()=>iso(new Date());
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const flockName=f=>{const cn=f.close&&f.close.cname;return cn?`${cn} · P${f.num}`:"Parvada "+f.num};
+const farmName=id=>(FARMS.find(x=>x.id===id)||{name:id}).name;
+const cycLabel=n=>ok(n)?`Año ${n}`:"—";
+const cycYears=(n,farm)=>{if(!ok(n))return "";const y=FC(farm||S.farm).y0+n;return `${y}-${String((y+1)%100).padStart(2,"0")}`};
+function toast(msg){const t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2600)}
+function arr(a,n){const o=Array.isArray(a)?a.slice(0,n):[];while(o.length<n)o.push(null);return o}
+function norm(doc){
+  const f=Object.assign({},doc);
+  f.placed=arr(f.placed,G);f.hAge=arr(f.hAge,G);f.hWt=arr(f.hWt,G);f.left=arr(f.left,G);
+  f.w=arr(f.w,WEEKS).map(r=>arr(r,G));f.mc=arr(f.mc,WEEKS).map(r=>arr(r,G));f.fcrW=arr(f.fcrW,WEEKS).map(r=>arr(r,G));f.f=arr(f.f,WEEKS).map(r=>arr(r,G));
+  f.close=Object.assign({},f.close||{});if(f.close.costs)f.close.costs=Object.assign({},f.close.costs);
+  return f;
+}
+function diffPct(v,ref){return (ok(v)&&ok(ref)&&ref!==0)?(v-ref)/Math.abs(ref)*100:null}
+function diffTag(v,ref,higherBetter=true){
+  const d=diffPct(v,ref);if(!ok(d))return "";
+  const good=higherBetter?d>=0:d<=0;const cls=Math.abs(d)<1.5?"":good?"up":"dn";
+  return `<span class="${cls}">${d>=0?"+":""}${fx(d,1)}%</span>`;
+}
+function diffPts(v,ref,higherBetter=true,unit=" puntos"){
+  if(!ok(v)||!ok(ref))return "";const d=v-ref;const good=higherBetter?d>=0:d<=0;const cls=Math.abs(d)<0.1?"":good?"up":"dn";
+  return `<span class="${cls}">${d>=0?"+":""}${fx(d,2)}${unit}</span>`;
+}
+
+/* ---------- cálculos ---------- */
+function wMort(mcRow,placed){
+  let a=0,b=0,n=0;const m=[];
+  for(let g=0;g<G;g++){const v=mcRow[g],p=placed[g];if(ok(v)){m.push(+v);if(ok(p)){a+=v*p;b+=+p;n++}}}
+  if(n&&n===m.length)return a/b;return m.length?mean(m):null;
+}
+function calc(f){
+  const placedT=sum(f.placed);const weeks=[];let cumF=0,anyF=false;const cumFg=new Array(G).fill(0);
+  const W0=mean(f.w[0]);let prevM=0;
+  for(let n=0;n<WEEKS;n++){
+    const wg=f.w[n],w=mean(wg);const prev=n?weeks[n-1].w:null;
+    const fW=n?sum(f.f[n]):null;if(n)f.f[n].forEach((v,i)=>{if(ok(v))cumFg[i]+=+v});
+    if(ok(fW)){cumF+=fW;anyF=true}
+    const mg=n?f.mc[n]:new Array(G).fill(null);
+    const mortCum=n?wMort(mg,f.placed):null;
+    const deadG=mg.map((v,g)=>ok(v)&&ok(f.placed[g])?v/100*f.placed[g]:null);
+    const deathsCum=sum(deadG);
+    const mortW=ok(mortCum)?mortCum-prevM:null;if(ok(mortCum))prevM=mortCum;
+    const alive=ok(placedT)&&ok(deathsCum)?placedT-deathsCum:(n===0?placedT:null);
+    const gain=(n&&ok(w)&&ok(prev))?w-prev:null;
+    weeks.push({n,day:n?n*7:1,wg,w,gain,adg:ok(gain)?gain/7:null,
+      adgCum:(n&&ok(w)&&ok(W0))?(w-W0)/(n*7):null,ratio:(n&&ok(w)&&ok(prev)&&prev>0)?w/prev:null,
+      cv:ok(w)&&vals(wg).length>1?sd(wg)/w*100:null,
+      min:vals(wg).length?Math.min(...vals(wg)):null,max:vals(wg).length?Math.max(...vals(wg)):null,
+      mg,mortCum,mortW,deadG,deathsCum,alive,feed:fW,feedCum:anyF?cumF:null,cumFg:cumFg.slice(),
+      fcrG:n?f.fcrW[n].slice():null,fcr:(anyF&&ok(w)&&alive>0&&w>0)?(cumF*QQ)/(alive*w):(n?mean(f.fcrW[n]):null)});
+  }
+  const withW=weeks.filter(r=>ok(r.w));const last=withW.length?withW[withW.length-1]:null;
+  const lastM=[...weeks].reverse().find(r=>ok(r.mortCum));
+  const C=f.close||{};const hAge=mean(f.hAge),hWt=mean(f.hWt),leftT=sum(f.left);
+  const closed=ok(C.lbs)||ok(C.fcr)||ok(hAge)||ok(leftT)||(f.harvest&&f.harvest<todayStr()&&withW.length>=6);
+  const birds=first(C.birds,placedT);
+  const dead=first(C.dead,lastM?lastM.deathsCum:null);
+  const mort=ok(C.mortPct)?C.mortPct*100:(ok(dead)&&birds?dead/birds*100:(lastM?lastM.mortCum:null));
+  const viab=ok(mort)?100-mort:null;
+  const alive=first(C.alive,(ok(birds)&&ok(dead))?birds-dead:null);
+  const age=first(C.days,hAge,closed&&f.start&&f.harvest?days(f.start,f.harvest):null);
+  const wFinal=first(C.wHarvest,hWt,closed&&last?last.w:null);
+  const lbs=first(C.lbs,closed&&alive&&wFinal?alive*wFinal:null);
+  const feedQQ=first(C.feedQQ,anyF?cumF:null);
+  const fcr=first(C.fcr,(ok(feedQQ)&&lbs)?feedQQ*QQ/lbs:null);
+  const eefCalc=(ok(viab)&&ok(wFinal)&&ok(age)&&ok(fcr)&&fcr>0)?viab*wFinal*LB2KG/(age*fcr)*100:null;
+  const eef=first(C.eef,eefCalc);
+  const adgT=(ok(wFinal)&&ok(W0)&&ok(age)&&age>0)?(wFinal-W0)/age:null;
+  const tab=pay(wFinal,fcr);
+  const price=first(C.price,closed&&tab?tab.total:null);
+  const liq=first(C.liq,price);
+  const liqSrc=ok(C.liq)?"liquidado":ok(C.price)?"precio de tabla":tab?"estimado con tabla 2025":"";
+  const income=(ok(lbs)&&ok(liq))?lbs*liq:null;
+  const cost=first(C.cost);const costLb=(ok(cost)&&lbs)?cost/lbs:null;
+  /* químicos de habilitación que Cargill descuenta en el crédito final */
+  /* Cargill los debita del crédito final; en “Costo x PV” están como “Consumo (Químicos)”, así que ya van dentro del costo */
+  const chemKey=C.costs?Object.keys(C.costs).find(k=>/^consumo\s*\(qu[ií]micos\)/i.test(k)):null;
+  const hab=first(C.hab,chemKey?C.costs[chemKey]:null);const habLb=(ok(hab)&&lbs)?hab/lbs:null;
+  const netIncome=ok(income)?income-(hab||0):null;const liqNet=ok(liq)?liq-(habLb||0):null;
+  const marginLb=(ok(liq)&&ok(costLb))?liq-costLb:null;
+  const profit=(ok(income)&&ok(cost))?income-cost:null;
+  const perBird=first(C.perBird,(ok(liq)&&ok(wFinal))?liq*wFinal:null);
+  const feedBird=first(C.feedBird,(ok(feedQQ)&&alive)?feedQQ*QQ/alive:null);
+  const dayNow=f.start?Math.max(0,days(f.start,todayStr())):null;
+  return {f,C,weeks,placedT,W0,last,lastM,closed,birds,dead,mort,viab,alive,age,wFinal,wFinalSrc:ok(C.wHarvest)?"cierre":ok(hWt)?"peso de cosecha":"último pesaje",
+    lbs,feedQQ,feedBird,fcr,eef,adgT,price,liq,liqSrc,income,cost,costLb,marginLb,profit,perBird,hab,habLb,habEst:false,netIncome,liqNet,
+    hAge,leftT,leftPct:(ok(leftT)&&birds)?leftT/birds*100:null,dayNow,cycle:f.cycle,
+    density:ok(birds)?birds/G/M2:null,wThin:first(C.wThin),thinPct:ok(C.thinPct)?C.thinPct*100:null,sanitary:first(C.sanitary),
+    pBase:first(C.pBase),bConv:first(C.bConv),bMejora:first(C.bMejora),bInv:first(C.bInv),tab};
+}
+function farmFlocks(farm){return [...S.flocks.values()].filter(f=>f.farm===farm).sort((a,b)=>a.num-b.num)}
+const _cc=new WeakMap();
+function C_(f){let c=_cc.get(f);if(!c){c=calc(f);_cc.set(f,c)}return c}
+function hist(farm,exclId){
+  const cs=farmFlocks(farm).filter(f=>f._id!==exclId).map(C_);
+  const wk=[];
+  for(let n=0;n<WEEKS;n++){
+    const ws=cs.map(c=>c.weeks[n].w).filter(ok);
+    wk.push({n,w:mean(ws),min:ws.length?Math.min(...ws):null,max:ws.length?Math.max(...ws):null,
+      adg:mean(cs.map(c=>c.weeks[n].adg)),adgCum:mean(cs.map(c=>c.weeks[n].adgCum)),
+      mortCum:mean(cs.map(c=>c.weeks[n].mortCum)),fcr:mean(cs.map(c=>c.weeks[n].fcr)),mortW:mean(cs.map(c=>c.weeks[n].mortW)),
+      mMin:(v=>v.length?Math.min(...v):null)(cs.map(c=>c.weeks[n].mortCum).filter(ok)),mMax:(v=>v.length?Math.max(...v):null)(cs.map(c=>c.weeks[n].mortCum).filter(ok))});
+  }
+  const cl=cs.filter(c=>c.closed);const m=k=>mean(cl.map(c=>c[k]));
+  return {wk,count:cs.length,wFinal:m("wFinal"),adgT:m("adgT"),age:m("age"),mort:m("mort"),leftT:m("leftT"),fcr:m("fcr"),eef:m("eef"),
+    liq:m("liq"),liqNet:m("liqNet"),hab:m("hab"),costLb:m("costLb"),marginLb:m("marginLb"),profit:m("profit"),lbs:m("lbs")};
+}
+function cycleAgg(farm,cyc){
+  const cs=farmFlocks(farm).map(C_).filter(c=>c.cycle===cyc);
+  const cl=cs.filter(c=>c.closed);
+  const s=k=>sum(cl.map(c=>c[k])),m=k=>mean(cl.map(c=>c[k]));
+  const birds=s("birds"),dead=s("dead"),alive=s("alive"),lbs=s("lbs"),feed=s("feedQQ"),income=s("income");
+  const wc=cl.filter(c=>ok(c.cost)&&ok(c.lbs));const cost=sum(wc.map(c=>c.cost)),lbsC=sum(wc.map(c=>c.lbs)),incC=sum(wc.map(c=>c.income));
+  const hab=sum(cl.map(c=>c.hab));const habN=cl.filter(c=>ok(c.hab)).length;
+  const tabInc=sum(cl.map(c=>ok(c.price)&&ok(c.lbs)?c.price*c.lbs:null));
+  const Y=S.years.get(farm+"-"+cyc)||null;
+  return {cyc,n:cl.length,nAll:cs.length,running:cs.length-cl.length,birds,dead,alive,lbs,feed,income,cost,
+    mort:m("mort"),density:(birds&&cl.length)?birds/cl.length/G/M2:null,
+    age:m("age"),sanitary:m("sanitary"),wThin:m("wThin"),thinPct:m("thinPct"),wFinal:m("wFinal"),
+    fcr:(ok(feed)&&lbs)?feed*QQ/lbs:m("fcr"),feedBird:(ok(feed)&&alive)?feed*QQ/alive:m("feedBird"),eef:m("eef"),
+    pBase:m("pBase"),bConv:m("bConv"),bMejora:m("bMejora"),bInv:m("bInv"),
+    price:(ok(tabInc)&&lbs)?tabInc/lbs:m("price"),liq:(ok(income)&&lbs)?income/lbs:m("liq"),perBird:m("perBird"),
+    costLb:(ok(cost)&&lbsC)?cost/lbsC:null,marginLb:(ok(incC)&&ok(cost)&&lbsC)?(incC-cost)/lbsC:null,profitOp:(ok(incC)&&ok(cost))?incC-cost:null,
+    Y,hab,habN,deduct:ok(hab)?hab:null,diffBank:(Y&&ok(Y.incomeLbs)&&ok(income))?income-Y.incomeLbs:null,netIncome:ok(income)?income-(hab||0):null,
+    flocks:cs};
+}
+function cyclesOf(farm){return [...new Set(farmFlocks(farm).map(f=>f.cycle).filter(ok))].sort((a,b)=>a-b)}
+function lastFullCycle(farm){const cs=cyclesOf(farm).map(c=>cycleAgg(farm,c)).filter(a=>a.n>=7&&a.running===0);return cs.length?cs[cs.length-1].cyc:null}
+
+/* ---------- gráficos SVG ---------- */
+function niceStep(range,count){const raw=range/count;const p=Math.pow(10,Math.floor(Math.log10(raw)));const n=raw/p;return (n<=1?1:n<=2?2:n<=2.5?2.5:n<=5?5:10)*p}
+function scaleY(lo,hi,count=5){if(hi===lo){hi=lo+1}const st=niceStep(hi-lo,count);const a=Math.floor(lo/st)*st,b=Math.ceil(hi/st)*st;const t=[];for(let v=a;v<=b+st/2;v+=st)t.push(+v.toFixed(8));return {lo:a,hi:b,t,st}}
+function tipBox(box){let tip=box.querySelector(".tip");if(!tip){tip=document.createElement("div");tip.className="tip";tip.hidden=true;box.appendChild(tip)}return tip}
+function attachTip(box,svg,W,xs,render){
+  const tip=tipBox(box);const guide=svg.querySelector(".guide");
+  function move(ev){
+    const r=svg.getBoundingClientRect();const x=(ev.clientX-r.left)/r.width*W;
+    let bi=0,bd=1e9;xs.forEach((v,i)=>{const d=Math.abs(v-x);if(d<bd){bd=d;bi=i}});
+    const html=render(bi);if(!html){tip.hidden=true;if(guide)guide.setAttribute("opacity",0);return}
+    tip.innerHTML=html;tip.hidden=false;const px=xs[bi]/W*r.width;
+    tip.style.left=Math.min(Math.max(px,80),r.width-80)+"px";tip.style.top=(ev.clientY-r.top)+"px";
+    if(guide){guide.setAttribute("x1",xs[bi]);guide.setAttribute("x2",xs[bi]);guide.setAttribute("opacity",1)}
+  }
+  svg.addEventListener("pointermove",move);svg.addEventListener("pointerdown",move);
+  svg.addEventListener("pointerleave",()=>{tip.hidden=true;if(guide)guide.setAttribute("opacity",0)});
+}
+/* curva por día: serie propia + promedio histórico + banda */
+function curveChart(box,{pts,hist,band,d,unit,aria,tip,xs}){
+  const W=400,H=260,m={l:42,r:14,t:14,b:28};const iw=W-m.l-m.r,ih=H-m.t-m.b;
+  const all=[...pts.map(p=>p.v),...hist.map(p=>p.v),...band.map(p=>p.hi)].filter(ok);
+  const sc=scaleY(0,Math.max(...all,0.0001)*1.05,5);
+  const X=dd=>m.l+dd/42*iw,Y=v=>m.t+ih-(v-sc.lo)/(sc.hi-sc.lo)*ih;
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}">`;
+  sc.t.forEach(v=>{s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${m.l-8}" y="${Y(v)+4}" text-anchor="end">${fx(v,d)}</text>`});
+  xs.forEach(x=>{s+=`<text x="${X(x.day)}" y="${H-8}" text-anchor="middle">${x.lab}</text>`});
+  const bb=band.filter(p=>ok(p.lo)&&ok(p.hi));
+  if(bb.length>1)s+=`<path d="M${bb.map(p=>X(p.day)+","+Y(p.hi)).join("L")}L${bb.slice().reverse().map(p=>X(p.day)+","+Y(p.lo)).join("L")}Z" fill="var(--band)"/>`;
+  const hh=hist.filter(p=>ok(p.v));if(hh.length>1)s+=`<path d="M${hh.map(p=>X(p.day)+","+Y(p.v)).join("L")}" fill="none" stroke="var(--hist)" stroke-width="2" stroke-dasharray="5 4"/>`;
+  const pp=pts.filter(p=>ok(p.v));
+  if(pp.length){if(pp.length>1)s+=`<path d="M${pp.map(p=>X(p.day)+","+Y(p.v)).join("L")}" fill="none" stroke="var(--s1)" stroke-width="2.5" stroke-linejoin="round"/>`;
+    pp.forEach((p,i)=>{s+=`<circle cx="${X(p.day)}" cy="${Y(p.v)}" r="${i===pp.length-1?5:3.5}" fill="var(--s1)" stroke="var(--panel)" stroke-width="2"/>`});
+    const lp=pp[pp.length-1];const right=lp.day>30;s+=`<text x="${X(lp.day)+(right?-9:9)}" y="${Y(lp.v)-9}" text-anchor="${right?"end":"start"}" style="fill:var(--ink);font-weight:500">${fx(lp.v,d)}${unit}</text>`}
+  s+=`<line class="guide" x1="0" x2="0" y1="${m.t}" y2="${m.t+ih}" stroke="var(--ink-3)" opacity="0"/><line x1="${m.l}" x2="${W-m.r}" y1="${m.t+ih}" y2="${m.t+ih}" stroke="var(--ink-3)"/></svg>`;
+  box.innerHTML=s;attachTip(box,box.querySelector("svg"),W,xs.map(x=>X(x.day)),tip);
+}
+/* barras con marca opcional (v2) y valores negativos */
+function barChart(box,items,{d=2,fmt,aria,tickLab,hl,avg,avgLab="Promedio",tip,onClick,H=240,zero=true}){
+  const W=Math.max(300,Math.min(980,items.length*46+80)),m={l:58,r:12,t:14,b:30};const iw=W-m.l-m.r,ih=H-m.t-m.b;
+  const vs=[...items.map(i=>i.v),...items.map(i=>i.v2)].filter(ok);
+  if(!vs.length){box.innerHTML=`<div class="empty">Sin datos todavía.</div>`;return}
+  let lo=Math.min(...vs),hi=Math.max(...vs);if(zero){lo=Math.min(0,lo);hi=Math.max(0,hi)}else{const pad=(hi-lo)*0.35||hi*0.05;lo=lo-pad;hi=hi+pad*0.3}
+  const sc=scaleY(lo,hi,5);const Y=v=>m.t+ih-(v-sc.lo)/(sc.hi-sc.lo)*ih;const y0=Y(Math.max(sc.lo,Math.min(0,sc.hi)));const base=zero?y0:m.t+ih;
+  const bw=iw/items.length;const X=i=>m.l+i*bw+bw/2;const w=Math.max(5,Math.min(30,bw*0.58));
+  const F=fmt||(v=>fx(v,d));
+  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria||"")}">`;
+  sc.t.forEach(v=>{s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${Math.abs(v)<1e-12&&zero?"var(--ink-3)":"var(--line)"}"/><text x="${m.l-8}" y="${Y(v)+4}" text-anchor="end">${F(v)}</text>`});
+  items.forEach((it,i)=>{const x=X(i);
+    if(ok(it.v)){const y=Y(it.v);const top=Math.min(y,base),h=Math.abs(base-y);const r=Math.min(3,h/2,w/2);
+      const neg=it.v<0;const fill=neg?"var(--bad)":"var(--s1)";const op=(hl==null||!items.some(x=>x.key===hl)||hl===it.key)?1:0.5;
+      if(!neg)s+=`<path d="M${x-w/2},${base}V${top+r}Q${x-w/2},${top} ${x-w/2+r},${top}H${x+w/2-r}Q${x+w/2},${top} ${x+w/2},${top+r}V${base}Z" fill="${fill}" opacity="${op}"/>`;
+      else s+=`<path d="M${x-w/2},${base}V${top+h-r}Q${x-w/2},${top+h} ${x-w/2+r},${top+h}H${x+w/2-r}Q${x+w/2},${top+h} ${x+w/2},${top+h-r}V${base}Z" fill="${fill}" opacity="${op}"/>`}
+    if(ok(it.v2))s+=`<line x1="${x-w/2-5}" x2="${x+w/2+5}" y1="${Y(it.v2)}" y2="${Y(it.v2)}" stroke="var(--ink)" stroke-width="2.5" stroke-linecap="round"/>`;
+    const step=Math.ceil(items.length/22);if(i%step===0||i===items.length-1)s+=`<text x="${x}" y="${H-9}" text-anchor="middle">${esc(it.lab)}</text>`});
+  if(ok(avg))s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="var(--ink-2)" stroke-width="1.5" stroke-dasharray="6 4"/><text x="${W-m.r}" y="${Y(avg)-6}" text-anchor="end" style="fill:var(--ink-2)">${avgLab} ${F(avg)}</text>`;
+  s+=`<line class="guide" x1="0" x2="0" y1="${m.t}" y2="${m.t+ih}" stroke="var(--ink-3)" opacity="0"/></svg>`;
+  box.innerHTML=s;const svg=box.querySelector("svg");
+  if(tip)attachTip(box,svg,W,items.map((_,i)=>X(i)),i=>tip(items[i]));
+  if(onClick){svg.style.cursor="pointer";svg.addEventListener("click",ev=>{const r=svg.getBoundingClientRect();const x=(ev.clientX-r.left)/r.width*W;const i=Math.max(0,Math.min(items.length-1,Math.floor((x-m.l)/bw)));onClick(items[i])})}
+}
+
+
+/* ---------- lector .xlsx propio (sin librerías externas) ---------- */
+const XL=(function(){
+  const u16=(b,o)=>b[o]|(b[o+1]<<8),u32=(b,o)=>(b[o]|(b[o+1]<<8)|(b[o+2]<<16)|(b[o+3]<<24))>>>0;
+  const dec=new TextDecoder("utf-8");
+  async function inflate(data){
+    const ds=new DecompressionStream("deflate-raw");const s=new Blob([data]).stream().pipeThrough(ds);
+    return new Uint8Array(await new Response(s).arrayBuffer());
+  }
+  function entries(b){
+    let e=-1;for(let i=b.length-22;i>=Math.max(0,b.length-70000);i--){if(u32(b,i)===0x06054b50){e=i;break}}
+    if(e<0)throw new Error("El archivo no parece un Excel .xlsx válido.");
+    const n=u16(b,e+10),off=u32(b,e+16);const out={};let p=off;
+    for(let i=0;i<n;i++){if(u32(b,p)!==0x02014b50)break;const m=u16(b,p+10),cs=u32(b,p+20),nl=u16(b,p+28),el=u16(b,p+30),cl=u16(b,p+32),lo=u32(b,p+42);
+      const name=dec.decode(b.subarray(p+46,p+46+nl));out[name]={m,cs,lo};p+=46+nl+el+cl}
+    return out;
+  }
+  async function file(b,ents,name){
+    const e=ents[name];if(!e)return null;const nl=u16(b,e.lo+26),el=u16(b,e.lo+28);const st=e.lo+30+nl+el;const data=b.subarray(st,st+e.cs);
+    const raw=e.m===0?data:await inflate(data);return dec.decode(raw);
+  }
+  const ent=s=>s.replace(/&(lt|gt|amp|quot|apos|#\d+|#x[0-9a-f]+);/gi,(m,x)=>x==="lt"?"<":x==="gt"?">":x==="amp"?"&":x==="quot"?'"':x==="apos"?"'":x[1]==="x"||x[1]==="X"?String.fromCodePoint(parseInt(x.slice(2),16)):String.fromCodePoint(+x.slice(1)));
+  const colNum=s=>{let n=0;for(const ch of s)n=n*26+ch.charCodeAt(0)-64;return n-1};
+  async function open(buf){
+    const b=new Uint8Array(buf);const ents=entries(b);
+    const wbx=await file(b,ents,"xl/workbook.xml");if(!wbx)throw new Error("El archivo no parece un Excel .xlsx válido.");
+    const rel=await file(b,ents,"xl/_rels/workbook.xml.rels")||"";
+    const rels={};rel.replace(/<Relationship\b[^>]*>/g,t=>{const id=/Id="([^"]+)"/.exec(t),tg=/Target="([^"]+)"/.exec(t);if(id&&tg)rels[id[1]]=tg[1];return t});
+    const sheets={};const names=[];
+    wbx.replace(/<sheet\b[^>]*>/g,t=>{const nm=/name="([^"]*)"/.exec(t),id=/r:id="([^"]+)"/.exec(t)||/\bid="([^"]+)"/.exec(t);if(nm&&id){let tg=rels[id[1]]||"";tg=tg.replace(/^\/?xl\//,"").replace(/^\//,"");const n=ent(nm[1]);names.push(n);sheets[n]="xl/"+tg}return t});
+    let ss=null;
+    async function strings(){if(ss)return ss;ss=[];const x=await file(b,ents,"xl/sharedStrings.xml");if(x){const re=/<si>([\s\S]*?)<\/si>/g;let m;while((m=re.exec(x))){let t="";m[1].replace(/<t[^>]*>([\s\S]*?)<\/t>/g,(q,v)=>{t+=v;return q});ss.push(ent(t))}}return ss}
+    async function grid(name,maxR,maxC){
+      const path=sheets[name];if(!path)return [];const x=await file(b,ents,path);if(!x)return [];const S=await strings();
+      const g=[];const re=/<c r="([A-Z]+)(\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;let m;
+      while((m=re.exec(x))){if(m[4]===undefined)continue;const r=+m[2]-1;if(r>=maxR)continue;const c=colNum(m[1]);if(c>=maxC)continue;
+        const t=/\bt="([^"]+)"/.exec(m[3]);const type=t?t[1]:"n";let v=null;
+        if(type==="inlineStr"){const q=/<t[^>]*>([\s\S]*?)<\/t>/.exec(m[4]);v=q?ent(q[1]):null}
+        else{const q=/<v>([\s\S]*?)<\/v>/.exec(m[4]);if(!q)continue;const raw=q[1];
+          if(type==="s")v=S[+raw]??null;else if(type==="str"||type==="e")v=type==="e"?null:ent(raw);else if(type==="b")v=raw==="1";else{const n=Number(raw);v=isFinite(n)?n:raw}}
+        if(v===null||v==="")continue;(g[r]=g[r]||[])[c]=v}
+      for(let i=0;i<g.length;i++){if(!g[i])g[i]=[]}
+      return g;
+    }
+    return {SheetNames:names,grid};
+  }
+  function dateISO(v){
+    if(typeof v==="number"&&v>20000&&v<80000){const d=new Date(Date.UTC(1899,11,30)+Math.round(v)*864e5);return d.getUTCFullYear()+"-"+String(d.getUTCMonth()+1).padStart(2,"0")+"-"+String(d.getUTCDate()).padStart(2,"0")}
+    if(typeof v==="string"&&/^\d{4}-\d{2}-\d{2}/.test(v))return v.slice(0,10);return null;
+  }
+  return {open,dateISO};
+})();
+
+/* ---------- LECTOR DE EXCEL ---------- */
+const XP=(function(){
+  const norm=s=>String(s??"").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/\s+/g," ").trim().toLowerCase();
+  const isNum=v=>typeof v==="number"&&isFinite(v);
+  const rnd=(v,n=4)=>isNum(v)?Math.round(v*Math.pow(10,n))/Math.pow(10,n):null;
+  const cell=(g,r,c)=>(g[r]&&g[r][c]!==undefined)?g[r][c]:null;
+  const serialToISO=v=>XL.dateISO(v);
+  function findSheet(wb,re){return wb.SheetNames.find(n=>re.test(norm(n)))}
+  function kind(wb){
+    if(findSheet(wb,/flujo mensual/)||findSheet(wb,/detalle de pago/))return "flujo";
+    if(findSheet(wb,/^pesos$/))return "comparativo";
+    return null;
+  }
+  /* ---- Comparativo1: pesos, aves y mortalidad por galera ---- */
+  async function parseComparativo(wb){
+    const g=await wb.grid(findSheet(wb,/^pesos$/),400,400);
+    const warn=[];const flocks={};
+    // columnas de parvadas: fila donde aparecen "Parvada N" por primera vez con fecha abajo
+    let hdrRow=-1;for(let r=0;r<20&&hdrRow<0;r++){if((g[r]||[]).some(v=>/^parvada\s*\d+$/.test(norm(v))))hdrRow=r}
+    if(hdrRow<0)throw new Error("No encontré la fila con “Parvada 1, Parvada 2…” en la hoja Pesos.");
+    const cols={};(g[hdrRow]||[]).forEach((v,c)=>{const m=/^parvada\s*(\d+)$/.exec(norm(v));if(m)cols[+m[1]]=c});
+    const labCol=r=>{for(let c=0;c<5;c++){const v=norm(cell(g,r,c));if(v)return v}return ""};
+    let rIni=-1,rCos=-1;for(let r=0;r<30;r++){for(let c=0;c<6;c++){const v=norm(cell(g,r,c));if(/^(fecha|f)\s*\/\s*inicio$/.test(v))rIni=r;if(/^(fecha|f)\s*\/\s*cosecha$/.test(v))rCos=r}}
+    // bloques de 10 galeras: fila donde alguna col 0..5 dice "G1"
+    const blocks=[];
+    for(let r=0;r<g.length;r++){
+      let gc=-1;for(let c=0;c<6;c++)if(norm(cell(g,r,c))==="g1"){gc=c;break}
+      if(gc<0)continue;
+      if(norm(cell(g,r+9,gc))!=="g10")continue;
+      let lab="";for(let k=0;k<10;k++)for(let c=0;c<gc;c++){const v=norm(cell(g,r+k,c));if(v&&!lab&&isNaN(+v))lab=v}
+      const tot=norm(cell(g,r+10,gc));let day=null;for(let c=0;c<gc;c++){const v=cell(g,r+10,c);if(isNum(v))day=v}
+      // cabecera del bloque: fila anterior con "Parvada N" / "Mor"
+      const hr=r-1;const mcols=[],fcols=[];(g[hr]||[]).forEach((v,c)=>{const t=norm(v);if(/^mor/.test(t))mcols.push(c);if(/^fcr\s*\d/.test(t))fcols.push(c)});
+      blocks.push({r,gc,lab,tot,day,mcols,fcols});
+      r+=9;
+    }
+    let kindOf=b=>{if(/recibid/.test(b.lab))return "placed";if(/cero|recepcion/.test(b.lab))return "w0";if(/ratio/.test(b.lab))return "skip";
+      if(/edad\s*cosecha/.test(b.lab))return "hAge";if(/quedad/.test(b.lab))return "left";if(/semana/.test(b.lab)||b.tot==="prom")return "week";return "skip"};
+    const nums=Object.keys(cols).map(Number).sort((a,b)=>a-b);
+    nums.forEach(n=>{const c=cols[n];const st=rIni>=0?serialToISO(cell(g,rIni,c)):null,hv=rCos>=0?serialToISO(cell(g,rCos,c)):null;
+      flocks[n]={num:n,start:st,harvest:hv,placed:Array(10).fill(null),w:Array.from({length:7},()=>Array(10).fill(null)),mc:Array.from({length:7},()=>Array(10).fill(null)),fcrW:Array.from({length:7},()=>Array(10).fill(null)),hAge:Array(10).fill(null),left:Array(10).fill(null)}});
+    let seenW=0;
+    blocks.forEach(b=>{
+      const k=kindOf(b);if(k==="skip")return;
+      let wk=null;if(k==="week"){if(b.day===1||/cero|recepcion/.test(b.lab))wk=0;else if(isNum(b.day)&&b.day%7===0)wk=b.day/7;else{const m=/semana\s*(\d)/.exec(b.lab);wk=m?+m[1]:null}if(wk===null||wk>6)return}
+      if(k==="w0")wk=0;
+      nums.forEach((n,idx)=>{const c=cols[n];const F=flocks[n];
+        for(let gi=0;gi<10;gi++){const v=cell(g,b.r+gi,c);
+          if(k==="placed")F.placed[gi]=isNum(v)?Math.round(v):null;
+          else if(k==="hAge")F.hAge[gi]=rnd(v,2);
+          else if(k==="left")F.left[gi]=isNum(v)?Math.round(v):null;
+          else F.w[wk][gi]=rnd(v,3);
+          if((k==="week"||k==="w0")&&wk>0&&b.mcols.length){const mc=b.mcols[idx];if(mc!==undefined){const m=cell(g,b.r+gi,mc);F.mc[wk][gi]=rnd(m,3)}}
+          if(k==="week"&&wk>0&&b.fcols.length){const fc=b.fcols[idx];if(fc!==undefined){const x=cell(g,b.r+gi,fc);F.fcrW[wk][gi]=isNum(x)&&x>0.3&&x<3?rnd(x,3):null}}
+        }});
+      if(k==="week"||k==="w0")seenW++;
+    });
+    if(seenW<3)warn.push("Encontré pocos bloques de pesos semanales; revisa que la hoja Pesos mantenga su formato.");
+    return {flocks:Object.values(flocks).filter(f=>f.start||f.w[0].some(v=>v!==null)),warn};
+  }
+  /* ---- Flujo ASI: cierre por parvada, costos, pagos, flujo mensual y anual ---- */
+  const CLOSE_MAP=[[/aves totales ingresadas/,"birds",0],[/porcentaje de mortalidad/,"mortPct",5],[/^aves muertas/,"dead",0],[/dias de engorde/,"days",2],[/vaciado/,"sanitary",2],
+    [/^aves vivas/,"alive",0],[/peso en libras de raleo/,"wThin",3],[/peso en libras a la cosecha/,"wHarvest",3],[/^libras producidas/,"lbs",1],[/conversion fcr|^conversion/,"fcr",4],
+    [/alimento consumid/,"feedQQ",2],[/alimento\/ave/,"feedBird",3],[/precio x lb/,"pBase",5],[/bono de conversion/,"bConv",5],[/bono x mejora/,"bMejora",5],[/bono x inversion/,"bInv",5],
+    [/precio final/,"price",5],[/% de raleo/,"thinPct",4],[/e\.?\s*europ/,"eef",2]];
+  const CAT={"salarios":"Salarios","planta":"Planta","plantas":"Planta","bono":"Bono","broza":"Broza","quimicos":"Químicos","inatec":"Inatec","gas":"Gas","impuestos municipales":"Impuestos municipales",
+    "uniforme personal granja":"Uniforme personal granja","energia electrica":"Energía eléctrica","reparacion y mantenimiento":"Reparación y mantenimiento","herramientas y suministros":"Herramientas y suministros",
+    "servicios profesionales":"Servicios profesionales","viaticos":"Viáticos","limpieza de galeras":"Limpieza de galeras","inversiones/mejoras":"Inversiones y mejoras","seguro total de la granja":"Seguro de la granja",
+    "retenciones en la fuente":"Retenciones en la fuente","suministros de oficina":"Suministros de oficina","gastos varios":"Gastos varios","administrativo":"Administrativo","transporte":"Transporte",
+    "internet":"Internet","inss":"INSS","repuestos y accesorios":"Repuestos y accesorios","gastos apertura":"Gastos de apertura","pago dgi":"Pago DGI","servicios contables":"Servicios contables","servicios gestoria":"Servicios de gestoría","servicios de gestoria":"Servicios de gestoría","servicios administrativos":"Servicios administrativos","maquinaria":"Maquinaria","servicios de vigilancia":"Servicios de vigilancia","reparacion y mantenimiento":"Reparación y mantenimiento"};
+  function bank(b){if(!b)return "";const s=String(b).replace(/\s+/g," ").trim().toUpperCase().replace("FICHOSA","FICOHSA");if(s==="TARJETA")return "Tarjeta";
+    const m=/(FICOHSA|BANPRO|LAFISE)\s*(C\$|\$)?/.exec(s);if(m)return m[1][0]+m[1].slice(1).toLowerCase()+" "+(m[2]||"C$");return s}
+  const MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+  const CF_PARENT=[/^salarios y bono/,/^pago seguro social/,/^suministros para galpon/,/^combustible \+ lpg/];
+  const CF_TOTAL=[/^ingresos$/,/^total egresos/,/^total abono/,/^saldo disponible/,/^total a final/];
+  async function parseFlujo(wb){
+    const warn=[];const out={close:{},years:{},payments:{},cash:{},cashRows:[],graf:[]};
+    const shF=findSheet(wb,/flujo mensual/);
+    if(shF){const g=await wb.grid(shF,160,140);
+      // --- cierre por parvada
+      let hr=-1;for(let r=0;r<20&&hr<0;r++){if((g[r]||[]).filter(v=>/^p\d+[\s-]/.test(norm(v))).length>3)hr=r}
+      let endR=g.findIndex(row=>row&&row.some(v=>norm(v)==="flujo de ingresos"));if(endR<0)endR=60;
+      if(hr>=0){const pc={};g[hr].forEach((v,c)=>{const m=/^p(\d+)[\s-]/.exec(norm(v));if(m)pc[+m[1]]=c});
+        /* nombre Cargill (“Parvada 6 2024”, “Parvada 1 2025-26”) en la fila de arriba */
+        Object.entries(pc).forEach(([n,c])=>{const v=String(cell(g,hr-1,c)??"").replace(/\s+/g," ").trim();if(/^parvada\s*\d+\s+\d{4}/i.test(v))(out.close[n]=out.close[n]||{}).cname=v.replace(/^parvada/i,"Parvada")});
+        for(let r=hr+1;r<endR;r++){let lab="";let lc=-1;for(let c=0;c<9;c++){const v=norm(cell(g,r,c));if(v&&isNaN(+v)){lab=v;lc=c}}
+          const mp=CLOSE_MAP.find(m=>m[0].test(lab));if(!mp)continue;
+          Object.entries(pc).forEach(([n,c])=>{const v=cell(g,r,c);if(isNum(v)){(out.close[n]=out.close[n]||{})[mp[1]]=rnd(v,mp[2])}});}
+      } else warn.push("No encontré la fila de parvadas (P1, P2…) en “FLUJO Mensual detallado”.");
+      // --- flujo mensual
+      const yrRow=endR-2>=0?endR-3:0;let mRow=-1;for(let r=endR-4;r<endR+2;r++){const row=g[r]||[];if(row.some(v=>norm(v)==="enero")||row.filter(v=>isNum(v)&&v>40000&&v<60000&&Math.abs(v-Math.round(v))<1e-9).length>=6){mRow=r;break}}
+      if(mRow>=0){const yRowIdx=(()=>{for(let r=mRow-1;r>=mRow-4;r--){if((g[r]||[]).some(v=>isNum(v)&&v>2000&&v<2100))return r}return -1})();
+        const mcols=[];let curY=null;const row=g[mRow]||[];
+        for(let c=0;c<row.length;c++){const yv=yRowIdx>=0?cell(g,yRowIdx,c):null;if(isNum(yv)&&yv>2000&&yv<2100)curY=yv;
+          const v=row[c];const nm=MESES.indexOf(norm(v));let key=null;
+          if(nm>=0&&curY)key=curY+"-"+String(nm+1).padStart(2,"0");else{const iso=serialToISO(v);if(iso)key=iso.slice(0,7)}
+          if(key)mcols.push([key,c]);}
+        const rowsDef=[];
+        for(let r=mRow+1;r<Math.min(g.length,mRow+75);r++){const lab=String(cell(g,r,1)??"").replace(/\s+/g," ").trim();if(!lab)continue;const n=norm(lab);
+          if(/^abono \d|^cuotas a prestamos|^prestamo backhoe/.test(n))continue;
+          const vals=mcols.map(([k,c])=>[k,cell(g,r,c)]);const has=vals.some(([k,v])=>isNum(v)&&v!==0);
+          const isHead=/^(flujo de ingresos|egresos operativos|abono a prestamos|efectivo en bancos)/.test(n);
+          rowsDef.push({key:"r"+rowsDef.length,label:lab,head:isHead,total:CF_TOTAL.some(re=>re.test(n)),parent:CF_PARENT.some(re=>re.test(n)),bal:/^saldo$|^saldo disponible|^banpro|^lafise|^ficohsa|^total a final/.test(n),r,vals});}
+        let inParent=false;rowsDef.forEach(d=>{const n=norm(d.label);if(d.parent){inParent=true;d.level=0;return}
+          if(d.head||d.total){inParent=false;d.level=0;return}
+          if(/^principal|^intereses|^saldo$/.test(n)){d.level=1;return}
+          if(inParent&&!/^(energia|reparacion|uniforme|pago dgi|seguro|herramientas|suministros de oficina|quimicos|internet|gastos varios|pago alcaldia|inversiones|limpieza|cuota|gastos de apertura)/.test(n)){d.level=1;return}
+          inParent=false;d.level=0});
+        out.cashRows=rowsDef.map(d=>({key:d.key,label:d.label,level:d.level,head:d.head,total:d.total,parent:d.parent,bal:d.bal}));
+        const nowM=new Date().toISOString().slice(0,7);mcols.forEach(([k],i)=>{if(k>nowM)return;const v={};let any=false;rowsDef.forEach(d=>{const x=d.vals[i][1];if(isNum(x)){v[d.key]=rnd(x,2);if(x!==0)any=true}});if(any)out.cash[k]=v});
+      } else warn.push("No encontré los meses (ENERO, FEBRERO…) del flujo mensual.");
+    } else warn.push("Falta la hoja “FLUJO Mensual detallado”.");
+    // --- liquidación por parvada (Graficos)
+    const shG=findSheet(wb,/^graficos$/);
+    if(shG){const g=await wb.grid(shG,80,20);let hr=g.findIndex(row=>row&&row.some(v=>norm(v)==="liquidacion"));
+      if(hr>=0){const cL=g[hr].findIndex(v=>norm(v)==="liquidacion"),cP=g[hr].findIndex(v=>/\$\/pollo/.test(norm(v))),cA=g[hr].findIndex(v=>norm(v)==="ano"),cV=g[hr].findIndex(v=>norm(v)==="parvada");
+        for(let r=hr+1;r<g.length;r++){const a=/(\d+)/.exec(norm(cell(g,r,cA))),p=/(\d+)/.exec(norm(cell(g,r,cV)));if(!a||!p)continue;out.graf.push({a:+a[1],p:+p[1],liq:isNum(cell(g,r,cL))?rnd(cell(g,r,cL),5):null,perBird:cP>=0&&isNum(cell(g,r,cP))?rnd(cell(g,r,cP),4):null})}}}
+    // --- costo por parvada
+    const shC=findSheet(wb,/^costo x pv$/);
+    if(shC){const g=await wb.grid(shC,60,60);
+      /* formato Pío Pío: fila con “PV 1 2025, PV 2 2025…” y rubros en la columna A */
+      const hp=g.findIndex(row=>row&&row.filter(v=>/^pv\s*\d+\s+\d{4}$/.test(norm(v))).length>=3);
+      if(hp>=0){const tr=g.findIndex(row=>row&&/^total de costo/.test(norm(row[0])));
+        if(tr>0){g[hp].forEach((v,c)=>{const m=/^pv\s*(\d+)\s+\d{4}$/.exec(norm(v));if(!m)return;const n=+m[1];const tot=cell(g,tr,c);if(!isNum(tot)||tot===0)return;
+          const o=out.close[n]=out.close[n]||{};o.cost=rnd(tot,2);const cats={};
+          for(let r=hp+1;r<tr;r++){const lab=String(cell(g,r,0)??"").trim();const x=cell(g,r,c);if(lab&&norm(lab)!=="categoria"&&isNum(x)&&x!==0)cats[lab]=rnd(x,2)}
+          if(Object.keys(cats).length)o.costs=cats});}
+        else warn.push("No encontré la fila “Total de costo” en “Costo x PV”.");}
+      else{const hr=g.findIndex(row=>row&&norm(row[1])==="numero parvada total");
+      const tr=g.findIndex(row=>row&&/^total costo/.test(norm(row[1])));const cr=g.findIndex(row=>row&&norm(row[1])==="categoria");
+      if(hr>=0&&tr>0){g[hr].forEach((v,c)=>{const m=/^p(\d+)$/.exec(norm(v));if(!m)return;const n=+m[1];const tot=cell(g,tr,c);if(!isNum(tot)||tot===0)return;
+        const o=out.close[n]=out.close[n]||{};o.cost=rnd(tot,2);const cats={};for(let r=(cr>=0?cr+1:hr+2);r<tr;r++){const lab=String(cell(g,r,1)??"").trim();const x=cell(g,r,c);if(lab&&isNum(x))cats[lab]=rnd(x,2)}
+        if(Object.keys(cats).length)o.costs=cats});}
+      else warn.push("No encontré el total por parvada en “Costo x PV”.");}}
+    const shC2=findSheet(wb,/^costo de parvada/);
+    if(shC2){const g=await wb.grid(shC2,60,60);const hr=g.findIndex(row=>row&&row.some(v=>norm(v)==="categoria"));
+      if(hr>=0)g[hr].forEach((v,c)=>{const m=/^p(\d+)$/.exec(norm(v));if(!m||norm(cell(g,hr,c-1))!=="categoria")return;const n=+m[1];
+        for(let r=hr+1;r<g.length;r++){if(norm(cell(g,r,c-1))==="total general"){const x=cell(g,r,c);if(isNum(x)){const o=out.close[n]=out.close[n]||{};if(!ok(o.cost))o.cost=rnd(x,2)}break}}})}
+    // --- comparativo anual (flujo de efectivo)
+    const shA=findSheet(wb,/comparativo anual/)||findSheet(wb,/^analisis/);
+    if(shA){const g=await wb.grid(shA,120,20);const st=g.findIndex(row=>row&&row.some(v=>/^flujo de efectivo/.test(norm(v))));
+      if(st>=0){const yc={};g[st].forEach((v,c)=>{const m=/^ano\s*(\d+)$/.exec(norm(v));if(m)yc[+m[1]]=c});
+        const yl=g[st-1]||[];const MAP=[[/^ingreso lbs/,"incomeLbs"],[/^ingreso iva/,"iva"],[/^otros ingreso/,"otherIncome"],[/^total in\s*greso/,"incomeTotal"],[/^lbs$/,"lbs"],[/^gasto opera/,"opex"],[/^prestamo$/,"loan"],
+          [/^total gasto/,"expTotal"],[/^prestamo/,"loan"],[/^utilidad$/,"profit"],[/^roi$/,"roi"],[/^abonos a pm/,"partnerPay"],[/^flujo neto/,"netFlow"],[/^acumulado/,"cumFlow"]];
+        Object.entries(yc).forEach(([y,c])=>{const o={cycle:+y,label:String(cell(g,st-1,c)??"")};for(let r=st+1;r<g.length;r++){const lab=[0,1].map(c=>cell(g,r,c)).filter(v=>typeof v==="string").map(norm).find(Boolean)||"";const mp=MAP.find(m=>m[0].test(lab));if(mp&&isNum(cell(g,r,c)))o[mp[1]]=rnd(cell(g,r,c),mp[1]==="roi"?4:2)}
+          if(Object.keys(o).length>3)out.years[y]=o});}}
+    // --- detalle de pagos
+    const shP=findSheet(wb,/detalle de pago/);
+    if(shP){const g=await wb.grid(shP,20000,20);const hr=g.findIndex(row=>row&&row.some(v=>norm(v)==="beneficiario"));
+      if(hr>=0){const H={};g[hr].forEach((v,c)=>{const n=norm(v);if(n)H[n]=c});const col=k=>H[k];
+        let n=0,skip=0;
+        for(let r=hr+1;r<g.length;r++){const row=g[r]||[];const d=serialToISO(row[col("fecha")]);const cat=row[col("categoria")];
+          const usdv=row[col("dolarizado")],tot=row[col("total")];
+          if(!d||!cat||norm(cat)==="mmm"||(!isNum(usdv)&&!isNum(tot))){if(row.some(v=>v!==null&&v!==0&&!(isNum(v)&&v>30&&v<40)))skip++;continue}
+          let p=row[col("#p")];p=isNum(p)?"P"+p:(p?String(p).trim():"");{const mm=/^p\s*v?\s*(\d+)$/i.exec(p);if(mm)p="P"+(+mm[1])}
+          const k0=bank(row[col("banco")]);const o={d,c:CAT[norm(cat)]||String(cat).trim().replace(/^./,x=>x.toUpperCase()),p,m:(x=>({TRF:"TF",CHEQUE:"CK",EFE:"EF"}[x]||x))(String(row[col("pagado")]||row[col("forma de pago")]||"").trim().toUpperCase()),b:String(row[col("beneficiario")]||"").trim(),
+            t:String(row[col("concepto")]||"").replace(/\s+/g," ").trim(),k:k0,s:rnd(row[col("subtotal")],2),r2:rnd(row[col("2%")],2)||null,r1:rnd(row[col("1%")],2)||null,iva:rnd(row[col("iva")],2)||null,tot:rnd(tot,2),tc:rnd(row[col("tco")],4),usd:rnd(usdv,2)};
+          if(/C\$$/.test(o.k)&&isNum(o.tot)&&isNum(o.usd)&&Math.abs(o.tot-o.usd)<0.01)o.k=o.k.replace("C$","$");
+          Object.keys(o).forEach(x=>{if(o[x]===null||o[x]===""||o[x]===undefined)delete o[x]});
+          (out.payments[d.slice(0,7)]=out.payments[d.slice(0,7)]||[]).push(o);n++;}
+        Object.values(out.payments).forEach(a=>a.sort((x,y)=>x.d.localeCompare(y.d)));
+        if(skip)warn.push(`${skip} filas del detalle de pagos no tenían fecha, categoría o monto y no se importaron.`);
+      } else warn.push("No encontré los encabezados del “Detalle de pago”.");}
+    return {...out,warn};
+  }
+  return {kind,parseComparativo,parseFlujo,norm};
+})();
+
+/* ---------- piezas comunes ---------- */
+const kpi=(lab,val,unit,sub,cls="")=>`<div class="kpi ${cls}"><span class="lab">${lab}</span><span class="val">${val}${unit?`<small>${unit}</small>`:""}</span><span class="sub">${sub||"&nbsp;"}</span></div>`;
+function statusPill(c){return c.closed?`<span class="pill">Cerrada</span>`:`<span class="pill good live">En curso · día ${c.dayNow??"—"}</span>`}
+function mortClass(v,weekly){if(!ok(v))return "";return weekly?(v>2?"dn":v>1?"wn":""):(v>6?"dn":v>5?"wn":"")}
+function emptyState(){
+  if(!S.loaded)return `<div class="empty"><h2>Cargando parvadas…</h2><p>Aquí aparecerán los indicadores de cada parvada y de cada año.</p></div>`;
+  if(!S.db)return `<div class="empty"><h2>Sin conexión a los datos</h2><p>Revisa tu conexión a internet e inicia sesión de nuevo para ver y guardar las parvadas.</p></div>`;
+  return `<div class="empty"><h2>${esc(farmName(S.farm))} aún no tiene parvadas</h2><p>Ve a <b>Captura</b> y crea la primera parvada con su fecha de recepción.</p><button class="btn primary" id="goCap">Crear parvada</button></div>`;
+}
+function goFlock(id){const f=S.flocks.get(id);if(!f)return;S.sel=id;S.farm=f.farm;S.gWeek=null;S.draft=null;setTab("reporte")}
+
+/* ---------- alertas ---------- */
+function dataIssues(c){
+  const out=[];
+  c.weeks.forEach(r=>{if(!ok(r.w))return;r.wg.forEach((v,g)=>{if(ok(v)&&(v<r.w*0.6||v>r.w*1.4))out.push(`${r.n?"S"+r.n:"Recepción"} G${g+1}: peso ${fx(v,3)} lb (promedio ${fx(r.w,3)})`)})});
+  for(let n=2;n<WEEKS;n++)for(let g=0;g<G;g++){const a=c.weeks[n].mg[g],b=c.weeks[n-1].mg[g];if(ok(a)&&ok(b)&&a<b-0.3)out.push(`S${n} G${g+1}: mortalidad acumulada baja de ${fx(b,2)}% a ${fx(a,2)}%`)}
+  return out;
+}
+function alertsFor(){
+  const out=[];const T=todayStr();
+  [...S.flocks.values()].map(C_).filter(c=>!c.closed).forEach(c=>{
+    const f=c.f,h=hist(f.farm,f._id),L=c.last,who=`${flockName(f)} · ${farmName(f.farm)}`;
+    if(L&&L.n>0){const d=diffPct(L.w,h.wk[L.n].w);
+      if(ok(d)&&d<-5)out.push({lvl:"bad",who,id:f._id,t:`Peso de semana ${L.n} ${fx(Math.abs(d),1)}% abajo del histórico (${fx(L.w,2)} vs ${fx(h.wk[L.n].w,2)} lb)`});
+      else if(ok(d)&&d<-2)out.push({lvl:"warn",who,id:f._id,t:`Peso de semana ${L.n} ${fx(Math.abs(d),1)}% abajo del histórico`});
+      else if(ok(d)&&d>3)out.push({lvl:"good",who,id:f._id,t:`Peso de semana ${L.n} va ${fx(d,1)}% arriba del histórico`});
+      const low=L.wg.map((v,i)=>({v,i})).filter(o=>ok(o.v)&&o.v<L.w*0.95).map(o=>"G"+(o.i+1));
+      if(low.length)out.push({lvl:"warn",who,id:f._id,t:`Galeras con peso rezagado en semana ${L.n}: ${low.join(", ")}`});
+      if(ok(L.cv)&&L.cv>8)out.push({lvl:"warn",who,id:f._id,t:`Peso disparejo entre galeras: variación de ${fx(L.cv,1)}%`});}
+    const M=c.lastM;
+    if(M){const hm=h.wk[M.n].mortCum;const d=ok(hm)?M.mortCum-hm:null;
+      if(ok(d)&&d>0.75)out.push({lvl:d>1.5?"bad":"warn",who,id:f._id,t:`Mortalidad acumulada a semana ${M.n}: ${pct(M.mortCum)} (histórico ${pct(hm)} a esa edad)`});
+      if(ok(M.mortW)&&M.mortW>1.2&&M.n>1)out.push({lvl:M.mortW>2?"bad":"warn",who,id:f._id,t:`Mortalidad de la semana ${M.n}: ${pct(M.mortW)}`});
+      const hiG=M.mg.map((v,i)=>({v,i})).filter(o=>ok(o.v)&&o.v>M.mortCum+1.5).map(o=>`G${o.i+1} (${fx(o.v,2)}%)`);
+      if(hiG.length)out.push({lvl:"warn",who,id:f._id,t:`Galeras con mortalidad alta en semana ${M.n}: ${hiG.join(", ")}`});}
+    for(let n=1;n<WEEKS;n++){if(ok(c.dayNow)&&c.dayNow>=n*7+2&&!ok(c.weeks[n].w)&&(!f.harvest||days(f.start,f.harvest)>=n*7)){out.push({lvl:"info",who,id:f._id,t:`Falta capturar el pesaje de la semana ${n} (día ${n*7})`});break}}
+    const miss=c.weeks.slice(1).filter(r=>ok(r.w)).flatMap(r=>r.wg.map((v,i)=>ok(v)?null:`S${r.n}·G${i+1}`).filter(Boolean));
+    if(miss.length&&miss.length<=6)out.push({lvl:"info",who,id:f._id,t:`Datos incompletos: ${miss.join(", ")}`});
+    if(f.harvest){const dl=days(T,f.harvest);if(dl>=0&&dl<=7)out.push({lvl:"info",who,id:f._id,t:`Cosecha programada en ${dl} días (${fd(f.harvest)})`})}
+  });
+  FARMS.flatMap(fm=>{const cs=farmFlocks(fm.id).map(C_);const cl=cs.filter(c=>c.closed);return [...cs.filter(c=>!c.closed),...cl.slice(-1)]}).forEach(c=>{const iss=dataIssues(c);if(iss.length)out.push({lvl:"info",who:`${flockName(c.f)} · ${farmName(c.f.farm)}`,id:c.f._id,t:`Revisar posible error de captura: ${iss.slice(0,2).join("; ")}${iss.length>2?` y ${iss.length-2} más`:""}`})});
+  FARMS.forEach(fm=>{const cs=farmFlocks(fm.id).map(C_).filter(c=>c.closed);if(cs.length<3)return;const c=cs[cs.length-1];const h=hist(fm.id,c.f._id);const who=`${flockName(c.f)} · ${fm.name}`;
+    const d=diffPct(c.wFinal,h.wFinal);if(ok(d)&&d<-4)out.push({lvl:"warn",who,id:c.f._id,t:`Última parvada cerró con peso ${fx(Math.abs(d),1)}% abajo del promedio (${fx(c.wFinal,2)} lb)`});
+    if(ok(c.mort)&&ok(h.mort)&&c.mort-h.mort>1)out.push({lvl:"warn",who,id:c.f._id,t:`Última parvada cerró con mortalidad ${pct(c.mort)} (promedio ${pct(h.mort)})`});
+    if(ok(c.marginLb)&&ok(h.marginLb)&&diffPct(c.marginLb,h.marginLb)<-15)out.push({lvl:"warn",who,id:c.f._id,t:`Margen por libra de la última parvada ${usd(c.marginLb,4)} vs promedio ${usd(h.marginLb,4)}`});
+    if(ok(c.costLb)&&ok(h.costLb)&&diffPct(c.costLb,h.costLb)>10)out.push({lvl:"warn",who,id:c.f._id,t:`Costo por libra de la última parvada ${usd(c.costLb,4)}, ${fx(diffPct(c.costLb,h.costLb),0)}% arriba del promedio`});
+    if(!ok(c.C.liq)&&ok(c.liq))out.push({lvl:"info",who,id:c.f._id,t:`Falta registrar la liquidación real de Cargill (se usa ${c.liqSrc})`});
+  });
+  const ord={bad:0,warn:1,info:2,good:3};return out.sort((a,b)=>ord[a.lvl]-ord[b.lvl]);
+}
+
+/* ---------- PANEL ---------- */
+function renderPanel(){
+  const el=$("#v-panel");const farm=S.farm;const ff=farmFlocks(farm);
+  if(!ff.length){el.innerHTML=emptyState();return}
+  const cycs=cyclesOf(farm);const full=lastFullCycle(farm);const A=full?cycleAgg(farm,full):null,B=full&&cycs.includes(full-1)?cycleAgg(farm,full-1):null;
+  const curC=cycs.length?cycs[cycs.length-1]:null;const cur=curC&&curC!==full?cycleAgg(farm,curC):null;
+  const all=ff.map(C_);const active=all.filter(c=>!c.closed);
+  const aliveNow=sum(active.map(c=>{const r=[...c.weeks].reverse().find(x=>ok(x.alive));return r?r.alive:c.placedT}));
+  const al=alertsFor();const nBad=al.filter(a=>a.lvl==="bad").length,nWarn=al.filter(a=>a.lvl==="warn").length;
+  const dl=(a,b,hb,k,unitPts)=>B?(unitPts?diffPts(a,b,hb):diffTag(a,b,hb))+` vs ${cycLabel(full-1)}`:"";
+  let html=`<div class="flock-head"><h2>Panel de control</h2><span class="muted">${esc(farmName(farm))} · al ${fd(todayStr())}</span></div>`;
+  if(A){html+=`<div class="card-h"><h3>Último ciclo completo · ${cycLabel(full)} (${cycYears(full)}) · ${A.n} parvadas</h3><span class="src">Comparado con ${cycLabel(full-1)}</span></div>
+  <div class="kpis">
+   ${kpi("Libras producidas",lbk(A.lbs),"lb",dl(A.lbs,B&&B.lbs,true))}
+   ${kpi("Peso a cosecha",fx(A.wFinal,2),"lb",dl(A.wFinal,B&&B.wFinal,true))}
+   ${kpi("Conversión alimenticia",fx(A.fcr,3),"",dl(A.fcr,B&&B.fcr,false))}
+   ${kpi("Mortalidad",pct(A.mort),"",B?diffPts(A.mort,B.mort,false)+` vs ${cycLabel(full-1)}`:"")}
+   ${kpi("IEP (índice de eficiencia productiva)",fi(A.eef),"",dl(A.eef,B&&B.eef,true))}
+   ${kpi("Precio liquidado",usd(A.liq,4),"/lb",dl(A.liq,B&&B.liq,true))}
+   ${kpi("Costo operativo",usd(A.costLb,4),"/lb",dl(A.costLb,B&&B.costLb,false))}
+   ${kpi("Utilidad del año",usdk(A.Y&&A.Y.profit),"",A.Y&&ok(A.Y.roi)?`Rentabilidad ${pct(A.Y.roi*100,1)} · `+(B&&B.Y?diffTag(A.Y.profit,B.Y.profit,true)+` vs ${cycLabel(full-1)}`:""):"flujo de caja del año")}
+  </div>`}
+  if(cur){const r=cur;const ref=A||{};html+=`<div class="card-h"><h3>Ciclo en curso · ${cycLabel(curC)} (${cycYears(curC)})</h3><span class="src">${r.n} cerradas · ${r.running} en curso · comparado con el promedio de ${cycLabel(full)}</span></div>
+  <div class="grid4">
+   ${kpi("Parvadas del ciclo",`${r.n}<small> de 7 cerradas</small>`,"",active.length?`${active.map(c=>flockName(c.f)).join(", ")} en galeras · ${fi(aliveNow)} aves`:"")}
+   ${kpi("Peso a cosecha",fx(r.wFinal,2),"lb",diffTag(r.wFinal,ref.wFinal,true))}
+   ${kpi("Conversión",fx(r.fcr,3),"",diffTag(r.fcr,ref.fcr,false))}
+   ${kpi("Margen por libra",usd(r.marginLb,4),"",ok(r.marginLb)?diffTag(r.marginLb,ref.marginLb,true):"falta liquidación o costo")}
+  </div>`}
+  html+=panelMoney(farm);
+  html+=`<div class="card"><div class="card-h"><h3>Atención</h3><span class="src">${nBad?`<span class="pill bad">${nBad} críticas</span> `:""}${nWarn?`<span class="pill warn">${nWarn} a vigilar</span>`:""}${!nBad&&!nWarn?'<span class="pill good">Todo en orden</span>':""}</span></div>
+  ${al.length?`<div class="alerts">${al.map(a=>`<div class="alert ${a.lvl}" data-id="${a.id}" role="button" tabindex="0"><span class="dot"></span><div class="txt"><span class="lvl">${{bad:"Crítico",warn:"Vigilar",info:"Pendiente",good:"Bien"}[a.lvl]}</span> · ${esc(a.t)}</div><span class="who">${esc(a.who)}</span></div>`).join("")}</div>`:`<p class="note">Sin alertas.</p>`}</div>`;
+  if(active.length){html+=`<h3>Parvadas en curso</h3><div class="acts">${active.map(c=>activeCard(c)).join("")}</div>`}
+  html+=`<div class="card"><div class="card-h"><h3>Por parvada · últimas 16</h3><div class="seg" role="group" aria-label="Indicador">${[["margin","Precio vs costo"],["profit","Utilidad"],["wFinal","Peso"],["fcr","Conversión"],["mort","Mortalidad"],["eef","IEP"]].map(([k,l])=>`<button data-pc="${k}" aria-pressed="${S.panelChart===k}">${l}</button>`).join("")}</div></div>
+   <div class="chart" id="cPanel"></div><div class="legend" id="lPanel"></div></div>`;
+  html+=indicatorTable(farm);
+  el.innerHTML=html;
+  drawPanelChart(farm);
+  const gf=$("#goFlujo");if(gf)gf.addEventListener("click",e=>{e.preventDefault();setTab("flujo")});
+  el.querySelectorAll("[data-pc]").forEach(b=>b.addEventListener("click",()=>{S.panelChart=b.dataset.pc;el.querySelectorAll("[data-pc]").forEach(x=>x.setAttribute("aria-pressed",x===b));drawPanelChart(farm)}));
+  el.querySelectorAll("[data-id]").forEach(x=>{const go=()=>goFlock(x.dataset.id);x.addEventListener("click",go);x.addEventListener("keydown",e=>{if(e.key==="Enter")go()})});
+}
+function activeCard(c){
+  const f=c.f,h=hist(f.farm,f._id),L=c.last,M=c.lastM;const dur=f.start&&f.harvest?days(f.start,f.harvest):null;const pr=dur?Math.min(100,Math.max(0,c.dayNow/dur*100)):0;
+  const nextN=L?L.n+1:1;const nd=f.start&&nextN<WEEKS?new Date(pd(f.start).getTime()+nextN*7*864e5):null;
+  return `<div class="card act" data-id="${f._id}" role="button" tabindex="0"><div class="card-h"><h2>${flockName(f)}</h2><span class="pill good live">Día ${c.dayNow??"—"}</span></div>
+  <span class="muted" style="font-size:12px">${cycLabel(f.cycle)} · ${fi(c.placedT)} aves · cosecha ${fd(f.harvest)}${ok(dur)?` · faltan ${Math.max(0,dur-c.dayNow)} días`:""}</span>
+  <div class="prog" aria-label="Avance"><i style="width:${pr}%"></i></div>
+  <div class="mini">
+   <div><span>Peso ${L?(L.n?"S"+L.n:"recepción"):""}</span><b>${fx(L?L.w:null,2)} lb</b><em>${L?diffTag(L.w,h.wk[L.n].w)+" vs histórico":""}</em></div>
+   <div><span>Ganancia diaria acum.</span><b>${fx(L?L.adgCum:null,3)}</b><em>${L&&L.n?diffTag(L.adgCum,h.wk[L.n].adgCum)+" vs histórico":""}</em></div>
+   <div><span>Mortalidad acum.${M?" S"+M.n:""}</span><b>${pct(M?M.mortCum:null)}</b><em>${M?diffPts(M.mortCum,h.wk[M.n].mortCum,false)+" vs histórico":""}</em></div>
+   <div><span>Aves vivas</span><b>${fi(M?M.alive:c.placedT)}</b><em class="muted">${M?fi(M.deathsCum)+" muertas":""}</em></div>
+   <div><span>Uniformidad</span><b>${L&&ok(L.cv)?fx(L.cv,1)+"%":"—"}</b><em>${L&&ok(L.cv)?(L.cv<=5?'<span class="up">Pareja</span>':L.cv<=8?'<span class="wn">Revisar</span>':'<span class="dn">Dispareja</span>'):""}</em></div>
+   <div><span>Próximo pesaje</span><b style="font-size:13px">${nd?"S"+nextN+" · "+nd.getDate()+" "+MES[nd.getMonth()]:"Cosecha"}</b><em>&nbsp;</em></div>
+  </div></div>`;
+}
+function drawPanelChart(farm){
+  const cs=farmFlocks(farm).map(C_).filter(c=>c.closed).slice(-16);const k=S.panelChart;const box=$("#cPanel"),lg=$("#lPanel");
+  const tipBase=c=>`<b>${flockName(c.f)}</b> · ${cycLabel(c.cycle)} · ${fdShort(c.f.harvest)}<br>`;
+  const opts={onClick:it=>goFlock(it.key),hl:S.sel};
+  if(k==="margin"){
+    barChart(box,cs.map(c=>({key:c.f._id,lab:"P"+c.f.num,v:c.liq,v2:c.costLb,c})),{...opts,fmt:v=>"$"+fx(v,3),aria:"Precio liquidado y costo por libra",zero:true,
+      tip:it=>tipBase(it.c)+`Precio: ${usd(it.c.liq,4)}/lb (${it.c.liqSrc})<br>Químicos Cargill: ${usd(it.c.habLb,4)}/lb<br>Costo: ${usd(it.c.costLb,4)}/lb<br>Margen: <b>${usd(it.c.marginLb,4)}/lb</b><br>Utilidad: ${usd(it.c.profit)}`});
+    lg.innerHTML=`<span><i class="band" style="background:var(--s1)"></i>Precio liquidado $/lb</span><span><i style="background:var(--ink)"></i>Costo operativo $/lb</span><span class="src">La distancia entre la barra y la raya es el margen por libra.</span>`;return}
+  const M={profit:{get:c=>c.profit,f:v=>usdk(v),lab:"Utilidad (liquidación − costo, químicos incluidos)",hb:true,zero:true},
+    wFinal:{get:c=>c.wFinal,f:v=>fx(v,2),lab:"Peso a cosecha (lb)",hb:true,zero:false},fcr:{get:c=>c.fcr,f:v=>fx(v,3),lab:"Conversión alimenticia",hb:false,zero:false},
+    mort:{get:c=>c.mort,f:v=>fx(v,1)+"%",lab:"Mortalidad (%)",hb:false,zero:true},eef:{get:c=>c.eef,f:v=>fi(v),lab:"IEP (índice de eficiencia productiva)",hb:true,zero:false}}[k];
+  const avg=mean(cs.map(M.get));
+  barChart(box,cs.map(c=>({key:c.f._id,lab:"P"+c.f.num,v:M.get(c),c})),{...opts,fmt:M.f,aria:M.lab,avg,zero:M.zero,
+    tip:it=>tipBase(it.c)+`${M.lab}: <b>${ok(it.v)?M.f(it.v):"sin dato"}</b><br>vs promedio: ${ok(it.v)?diffTag(it.v,avg,M.hb).replace(/class="[^"]*"/,""):"—"}`});
+  lg.innerHTML=`<span><i class="band" style="background:var(--s1)"></i>${M.lab}</span><span><i style="background:var(--ink-2)"></i>Promedio de las 16</span><span class="src">Toca una barra para abrir la parvada.</span>`;
+}
+const IND=[
+  {sec:"Producción"},
+  {lab:"Aves recibidas",d:0,hb:true,get:c=>c.birds},
+  {lab:"Mortalidad (%)",d:2,hb:false,get:c=>c.mort},
+  {lab:"Edad de cosecha (días)",d:1,hb:false,get:c=>c.age},
+  {lab:"Peso semana 1 (lb)",d:2,hb:true,get:c=>c.weeks[1].w},
+  {lab:"Peso semana 3 (lb)",d:2,hb:true,get:c=>c.weeks[3].w},
+  {lab:"Peso semana 5 (lb)",d:2,hb:true,get:c=>c.weeks[5].w},
+  {lab:"Peso a cosecha (lb)",d:2,hb:true,get:c=>c.wFinal},
+  {lab:"Ganancia diaria total (lb/día)",d:3,hb:true,get:c=>c.adgT},
+  {lab:"Libras producidas",d:0,hb:true,get:c=>c.lbs},
+  {lab:"Conversión alimenticia",d:3,hb:false,get:c=>c.fcr},
+  {lab:"IEP",d:0,hb:true,get:c=>c.eef},
+  {lab:"Pollos quedados",d:0,hb:false,get:c=>c.leftT},
+  {sec:"Dinero"},
+  {lab:"Precio liquidado ($/lb)",d:4,hb:true,get:c=>c.liq,usd:true},
+  {lab:"Químicos Cargill descontados ($)",d:0,hb:false,get:c=>c.hab,usd:true},
+  {lab:"Precio neto después de químicos ($/lb)",d:4,hb:true,get:c=>c.liqNet,usd:true},
+  {lab:"Costo operativo ($/lb)",d:4,hb:false,get:c=>c.costLb,usd:true},
+  {lab:"Margen ($/lb)",d:4,hb:true,get:c=>c.marginLb,usd:true},
+  {lab:"Ingreso por pollo ($)",d:3,hb:true,get:c=>c.perBird,usd:true},
+  {lab:"Utilidad operativa ($)",d:0,hb:true,get:c=>c.profit,usd:true}
+];
+function spark(vals,d){
+  const W=132,H=30,p=4;const pts=vals.map((v,i)=>({v,i})).filter(o=>ok(o.v));
+  if(pts.length<2)return '<span class="muted">—</span>';
+  const vs=pts.map(o=>o.v);const mn=Math.min(...vs),mx=Math.max(...vs);const rg=mx-mn||1;
+  const X=i=>p+i/(vals.length-1)*(W-2*p),Y=v=>H-p-(v-mn)/rg*(H-2*p);const av=mean(vs);const last=pts[pts.length-1];
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Tendencia"><line x1="${p}" x2="${W-p}" y1="${Y(av)}" y2="${Y(av)}" stroke="var(--line)" stroke-dasharray="3 3"/><path d="M${pts.map(o=>X(o.i)+","+Y(o.v)).join("L")}" fill="none" stroke="var(--s1)" stroke-width="1.6" stroke-linejoin="round"/><circle cx="${X(last.i)}" cy="${Y(last.v)}" r="3" fill="var(--s1)"/></svg>`;
+}
+function statusOf(v,ref,hb){const d=diffPct(v,ref);if(!ok(d))return "";const good=hb?d>=0:d<=0;
+  if(Math.abs(d)<2)return `<span class="pill">En promedio</span>`;return good?`<span class="pill good">Mejor</span>`:Math.abs(d)>6?`<span class="pill bad">Peor</span>`:`<span class="pill warn">Vigilar</span>`}
+function indicatorTable(farm){
+  const cs=farmFlocks(farm).map(C_).filter(c=>c.closed);
+  if(!cs.length)return `<div class="card"><h3>Indicadores por parvada</h3><p class="note">Aún no hay parvadas cerradas en esta granja.</p></div>`;
+  const L=cs[cs.length-1],l7=cs.slice(-7),tr=cs.slice(-14);
+  return `<div class="card"><div class="card-h"><h3>Indicadores por parvada · ${esc(farmName(farm))}</h3><span class="src">${cs.length} parvadas cerradas · tendencia de las últimas ${tr.length}</span></div>
+  <div class="scroll"><table><thead><tr><th>Indicador</th><th>Última (P${L.f.num})</th><th>Prom. últimas 7</th><th>Prom. histórico</th><th>Mejor</th><th>Peor</th><th>Tendencia</th><th>Última vs histórico</th></tr></thead><tbody>
+  ${IND.map(it=>{if(it.sec)return `<tr><td class="sec" colspan="8">${it.sec}</td></tr>`;
+    const vs=cs.map(it.get);const good=cs.map((c,i)=>({c,v:vs[i]})).filter(o=>ok(o.v));
+    if(!good.length)return `<tr><td>${it.lab}</td><td class="muted" colspan="7" style="text-align:left">Sin datos todavía</td></tr>`;
+    const srt=good.slice().sort((a,b)=>it.hb?b.v-a.v:a.v-b.v);const best=srt[0],worst=srt[srt.length-1];const av=mean(vs);const lv=it.get(L);
+    const F=v=>it.usd?usd(v,it.d):it.d===0?fi(v):fx(v,it.d);
+    return `<tr><td>${it.lab}</td><td class="num">${F(lv)}</td><td class="num">${F(mean(l7.map(it.get)))}</td><td class="num">${F(av)}</td><td class="num">${F(best.v)} <span class="muted">P${best.c.f.num}</span></td><td class="num">${F(worst.v)} <span class="muted">P${worst.c.f.num}</span></td><td class="spark">${spark(tr.map(it.get))}</td><td>${ok(lv)?diffTag(lv,av,it.hb)+" "+statusOf(lv,av,it.hb):"—"}</td></tr>`}).join("")}
+  </tbody></table></div></div>`;
+}
+
+/* ---------- RESULTADOS ANUALES ---------- */
+const YROWS=[
+  {sec:"Producción"},
+  {lab:"Parvadas cerradas",k:"n",d:0},
+  {lab:"Aves ingresadas",k:"birds",d:0,hb:true},
+  {lab:"Aves por m²",k:"density",d:2},
+  {lab:"Mortalidad (%)",k:"mort",d:2,hb:false,pts:true},
+  {lab:"Aves muertas",k:"dead",d:0,hb:false},
+  {lab:"Aves vivas",k:"alive",d:0,hb:true},
+  {lab:"Días de engorde",k:"age",d:1,hb:false},
+  {lab:"Días de vaciado sanitario",k:"sanitary",d:1},
+  {lab:"Peso de raleo (lb)",k:"wThin",d:2,hb:true},
+  {lab:"% de raleo",k:"thinPct",d:1},
+  {lab:"Peso a cosecha (lb)",k:"wFinal",d:2,hb:true},
+  {lab:"Libras producidas",k:"lbs",d:0,hb:true},
+  {lab:"Conversión alimenticia",k:"fcr",d:3,hb:false},
+  {lab:"Alimento consumido (qq)",k:"feed",d:0},
+  {lab:"Alimento por ave (lb)",k:"feedBird",d:2,hb:false},
+  {lab:"IEP (índice de eficiencia productiva)",k:"eef",d:0,hb:true},
+  {sec:"Precio recibido ($ por libra)"},
+  {lab:"Pago base",k:"pBase",d:4,usd:true,hb:true},
+  {lab:"Bono de conversión",k:"bConv",d:4,usd:true,hb:true},
+  {lab:"Bono por mejora",k:"bMejora",d:4,usd:true,hb:true},
+  {lab:"Bono por inversión",k:"bInv",d:4,usd:true,hb:true},
+  {lab:"Precio según tabla",k:"price",d:4,usd:true,hb:true},
+  {lab:"Precio liquidado",k:"liq",d:4,usd:true,hb:true,strong:true},
+  {lab:"Ingreso por pollo",k:"perBird",d:3,usd:true,hb:true},
+  {sec:"Resultado de las parvadas"},
+  {lab:"Liquidación bruta (libras × precio)",k:"income",d:0,usd:true,hb:true},
+  {lab:"Químicos de habilitación descontados por Cargill",k:"hab",d:0,usd:true,hb:false},
+  {lab:"Crédito neto a cuenta (liquidación − químicos)",k:"netIncome",d:0,usd:true,hb:true,strong:true},
+  {lab:"Costo operativo de parvadas",k:"cost",d:0,usd:true,hb:false},
+  {lab:"Costo operativo por libra",k:"costLb",d:4,usd:true,hb:false},
+  {lab:"Margen por libra",k:"marginLb",d:4,usd:true,hb:true,strong:true},
+  {lab:"Utilidad operativa",k:"profitOp",d:0,usd:true,hb:true,strong:true},
+  {sec:"Flujo de caja del año"},
+  {lab:"Ingreso por libras recibido",y:"incomeLbs",d:0,usd:true,hb:true},
+  {lab:"Diferencia liquidación vs ingreso al banco",k:"diffBank",d:0,usd:true},
+  {lab:"IVA recuperado",y:"iva",d:0,usd:true},
+  {lab:"Otros ingresos",y:"otherIncome",d:0,usd:true},
+  {lab:"Ingreso total",y:"incomeTotal",d:0,usd:true,hb:true,strong:true},
+  {lab:"Gasto operativo",y:"opex",d:0,usd:true,hb:false},
+  {lab:"Cuota de préstamo",y:"loan",d:0,usd:true},
+  {lab:"Gasto total",y:"expTotal",d:0,usd:true,hb:false},
+  {lab:"Utilidad",y:"profit",d:0,usd:true,hb:true,strong:true},
+  {lab:"Rentabilidad (ROI)",y:"roi",d:1,pct100:true,hb:true},
+  {lab:"Abonos a PM",y:"partnerPay",d:0,usd:true},
+  {lab:"Flujo neto",y:"netFlow",d:0,usd:true,hb:true,strong:true},
+  {lab:"Flujo acumulado",y:"cumFlow",d:0,usd:true,hb:true}
+];
+function yv(a,r){if(r.y)return a.Y?a.Y[r.y]:null;return a[r.k]}
+function yfmt(r,v){if(!ok(v))return "—";if(r.pct100)return pct(v*100,1);if(r.usd)return usd(v,r.d);return r.d===0?fi(v):fx(v,r.d)}
+function renderAnual(){
+  const el=$("#v-anual");const farm=S.farm;const cycs=cyclesOf(farm);
+  if(!cycs.length){el.innerHTML=emptyState();return}
+  const A=cycs.map(c=>cycleAgg(farm,c));const full=lastFullCycle(farm);const iA=A.findIndex(a=>a.cyc===full);const a1=A[iA],a0=iA>0?A[iA-1]:null;
+  let html=`<div class="flock-head"><h2>Resultados anuales</h2><span class="muted">${esc(farmName(farm))} · año Cargill de 7 parvadas${FC(farm).note}</span></div>`;
+  html+=`<div class="grid3">
+   <div class="card"><div class="card-h"><h3>Precio recibido vs costo por libra</h3></div><div class="chart" id="yPrice"></div><div class="legend"><span><i class="band" style="background:var(--s1)"></i>Precio liquidado</span><span><i style="background:var(--ink)"></i>Costo operativo</span></div></div>
+   <div class="card"><div class="card-h"><h3>Utilidad del año</h3></div><div class="chart" id="yProfit"></div><div class="legend"><span><i class="band" style="background:var(--s1)"></i>Utilidad (flujo de caja)</span></div></div>
+   <div class="card"><div class="card-h"><h3>Flujo neto después de abonos</h3></div><div class="chart" id="yFlow"></div><div class="legend"><span><i class="band" style="background:var(--s1)"></i>Positivo</span><span><i class="band" style="background:var(--bad)"></i>Negativo</span></div></div>
+  </div>
+  <div class="grid4">${[["wFinal","Peso a cosecha (lb)",2],["fcr","Conversión alimenticia",3],["mort","Mortalidad (%)",2],["eef","IEP",0]].map(([k,l])=>`<div class="card"><h3>${l}</h3><div class="chart" id="ym-${k}"></div></div>`).join("")}</div>
+  <div class="card"><div class="card-h"><h3>Comparativo anual</h3><span class="src">Producción y precios: calculados de las parvadas cerradas. Flujo de caja: hoja “Comparativo anual”.</span></div>
+  <div class="scroll"><table><thead><tr><th>Indicador</th>${A.map(a=>`<th class="${a.cyc===full?"yr-now":""}">${cycLabel(a.cyc)}<br><span style="font-weight:500">${cycYears(a.cyc)}${a.running||a.n<7?` · ${a.n}/7`:""}</span></th>`).join("")}<th>${a0?`${cycLabel(full)} vs ${cycLabel(full-1)}`:"Cambio"}</th></tr></thead><tbody>
+  ${YROWS.map(r=>{if(r.sec)return `<tr><td class="sec" colspan="${A.length+2}">${r.sec}</td></tr>`;
+    const v1=a1?yv(a1,r):null,v0=a0?yv(a0,r):null;
+    const ch=(ok(v1)&&ok(v0)&&r.hb!==undefined)?(r.pts||r.pct100?diffPts(r.pct100?v1*100:v1,r.pct100?v0*100:v0,r.hb):diffTag(v1,v0,r.hb)):"";
+    return `<tr><td${r.strong?' style="font-weight:700"':""}>${r.lab}</td>${A.map(a=>`<td class="num ${a.cyc===full?"yr-now":""}"${r.strong?' style="font-weight:600"':""}>${yfmt(r,yv(a,r))}</td>`).join("")}<td class="num">${ch}</td></tr>`}).join("")}
+  </tbody></table></div>
+  <p class="note">La liquidación es mayor que lo que entra al banco porque Cargill descuenta en el crédito final los químicos que usa en la limpieza y preparación de la granja al final de cada cosecha (habilitación). En Pío Pío salen de la fila “Consumo (Químicos)” de Costo x PV. Como ya están dentro del costo operativo, el margen y la utilidad los descuentan una sola vez. La fila “Diferencia liquidación vs ingreso al banco” compara libras × precio liquidado (hoja Graficos) con lo que entró al banco. El costo operativo de parvadas viene de las hojas de costo por parvada y puede diferir del gasto operativo del flujo.</p></div>`;
+  html+=`<div class="banner">El detalle de costos por rubro está en la pestaña <b>Costos</b>, y los ejercicios de conversión, peso y mortalidad en <b>Apéndice</b>.</div>`;
+  html+=simCard(farm,a1);
+  el.innerHTML=html;
+  const items=A.map(a=>({lab:cycLabel(a.cyc),key:a.cyc,a}));
+  barChart($("#yPrice"),items.map(i=>({...i,v:i.a.liq,v2:i.a.costLb})),{fmt:v=>"$"+fx(v,3),aria:"Precio y costo por libra por año",H:220,
+    tip:it=>`<b>${cycLabel(it.a.cyc)} · ${cycYears(it.a.cyc)}</b><br>Precio: ${usd(it.a.liq,4)}/lb<br>Costo: ${usd(it.a.costLb,4)}/lb<br>Margen: <b>${usd(it.a.marginLb,4)}/lb</b>`});
+  barChart($("#yProfit"),items.filter(i=>i.a.Y).map(i=>({...i,v:i.a.Y.profit})),{fmt:usdk,aria:"Utilidad por año",H:220,tip:it=>`<b>${cycLabel(it.a.cyc)}</b><br>Utilidad: ${usd(it.a.Y.profit)}<br>Rentabilidad: ${pct(it.a.Y.roi*100,1)}`});
+  barChart($("#yFlow"),items.filter(i=>i.a.Y).map(i=>({...i,v:i.a.Y.netFlow})),{fmt:usdk,aria:"Flujo neto por año",H:220,tip:it=>`<b>${cycLabel(it.a.cyc)}</b><br>Flujo neto: ${usd(it.a.Y.netFlow)}<br>Abonos a PM: ${usd(it.a.Y.partnerPay)}<br>Acumulado: ${usd(it.a.Y.cumFlow)}`});
+  [["wFinal",2,true],["fcr",3,false],["mort",2,true],["eef",0,false]].forEach(([k,d,z])=>barChart($("#ym-"+k),items.map(i=>({...i,v:i.a[k]})),{d,aria:k,H:170,zero:k==="mort",tip:it=>`<b>${cycLabel(it.a.cyc)}</b><br>${fx(it.v,d)}`}));
+  bindSim(farm,a1);
+}
+function costCard(farm,A){
+  const withCats=A.map(a=>{const cl=a.flocks.filter(c=>c.closed&&c.C.costs);const cats={};cl.forEach(c=>Object.entries(c.C.costs).forEach(([k,v])=>{cats[k]=(cats[k]||0)+v}));return {a,n:cl.length,cats,lbs:sum(cl.map(c=>c.lbs))}}).filter(x=>x.n);
+  if(!withCats.length)return "";
+  const full=lastFullCycle(farm);const lastC=withCats.find(x=>x.a.cyc===full)||withCats[withCats.length-1];const tot=sum(Object.values(lastC.cats));
+  const keys=Object.keys(lastC.cats).sort((x,y)=>lastC.cats[y]-lastC.cats[x]);
+  const mx=Math.max(...keys.map(k=>lastC.cats[k]/lastC.n));
+  return `<div class="card"><div class="card-h"><h3>Costo promedio por parvada · ${cycLabel(lastC.a.cyc)}</h3><span class="src">${lastC.n} parvadas con detalle</span></div>
+  <div class="hbar">${keys.slice(0,12).map(k=>{const v=lastC.cats[k]/lastC.n;return `<span>${esc(k)}</span><span class="bar"><i style="width:${v/mx*100}%"></i></span><b>${usd(v)} · ${fx(lastC.cats[k]/tot*100,0)}%</b>`}).join("")}</div>
+  <p class="note">Costo promedio por parvada: <b>${usd(tot/lastC.n)}</b> · ${usd(tot/lastC.lbs,4)} por libra.</p></div>
+  <div class="card"><h3>Costo por parvada por año</h3><div class="scroll"><table><thead><tr><th>Categoría</th>${withCats.map(x=>`<th>${cycLabel(x.a.cyc)}</th>`).join("")}<th>Cambio</th></tr></thead><tbody>
+  ${keys.map(k=>{const vs=withCats.map(x=>ok(x.cats[k])?x.cats[k]/x.n:null);const l=vs[vs.length-1],p=vs.length>1?vs[vs.length-2]:null;return `<tr><td>${esc(k)}</td>${vs.map(v=>`<td class="num">${usd(v)}</td>`).join("")}<td class="num">${diffTag(l,p,false)}</td></tr>`}).join("")}
+  <tr class="total"><td>Total por parvada</td>${withCats.map(x=>`<td class="num">${usd(sum(Object.values(x.cats))/x.n)}</td>`).join("")}<td></td></tr></tbody></table></div></div>`;
+}
+function simCard(farm,a1){
+  const ref=a1||{};
+  if(!S.sim)S.sim={w:+(ref.wFinal||5.5).toFixed(2),fcr:+(ref.fcr||1.5).toFixed(3),alive:Math.round(ref.alive&&ref.n?ref.alive/ref.n:510000),cost:+(ref.costLb||0.045).toFixed(4)};
+  return `<div class="card"><div class="card-h"><h3>Simulador de liquidación · tabla Cargill 2025</h3><span class="src">Valores iniciales: promedio de ${cycLabel(ref.cyc)}</span></div>
+  <div class="row">
+   <label class="field">Aves vivas a cosecha<input type="number" id="sAlive" step="100" value="${S.sim.alive}"></label>
+   <label class="field">Peso a cosecha (lb)<input type="number" id="sW" step="0.01" value="${S.sim.w}"></label>
+   <label class="field">Conversión alimenticia<input type="number" id="sF" step="0.001" value="${S.sim.fcr}"></label>
+   <label class="field">Costo operativo ($/lb)<input type="number" id="sC" step="0.0001" value="${S.sim.cost}"></label>
+  </div><div id="simOut"></div></div>`;
+}
+function bindSim(){
+  const out=$("#simOut");if(!out)return;
+  const run=()=>{const a=+$("#sAlive").value,w=+$("#sW").value,f=+$("#sF").value,c=+$("#sC").value;S.sim={alive:a,w,fcr:f,cost:c};
+    const p=pay(w,f);if(!p){out.innerHTML=`<p class="note">Escribe peso y conversión.</p>`;return}
+    const lbs=a*w,inc=lbs*p.total,cost=lbs*c;
+    const p1=pay(w,f-0.01),p2=pay(w+0.1,f);const dF=p1?(p1.total-p.total)*lbs:null,dW=p2?(a*(w+0.1)*p2.total-inc):null;
+    out.innerHTML=`<div class="sim-out" style="margin-top:10px">
+     ${kpi("Pago base",usd(p.base,4),"/lb",`rango de peso ${fx(w,2)} lb`)}
+     ${kpi("Bono por conversión",usd(p.bfcr,4),"/lb",`conversión ${fx(p.fcrKey,2)} en la tabla`)}
+     ${kpi("Bonos mejora + inversión",usd(p.mejora+p.inv,4),"/lb","")}
+     ${kpi("Precio total",usd(p.total,4),"/lb",`${usd(p.total*w,3)} por pollo`)}
+     ${kpi("Libras",lbk(lbs),"lb","")}
+     ${kpi("Liquidación bruta",usdk(inc),"","")}
+     ${kpi("Utilidad operativa",usdk(inc-cost),"",`margen ${usd(p.total-c,4)}/lb`)}
+    </div><p class="note">Bajar la conversión 0.01 (a ${fx(f-0.01,3)}) vale <b>${usd(dF)}</b> por parvada. Subir 0.1 lb el peso a cosecha vale <b>${usd(dW)}</b> por parvada.</p>`};
+  ["sAlive","sW","sF","sC"].forEach(id=>$("#"+id).addEventListener("input",run));run();
+}
+
+/* ---------- REPORTE DE PARVADA ---------- */
+function renderReporte(){
+  const el=$("#v-reporte");const f=S.flocks.get(S.sel);
+  if(!f){el.innerHTML=emptyState();return}
+  const c=C_(f),h=hist(f.farm,f._id);const cur=c.closed?null:c.last;const M=c.lastM;
+  if(S.gWeek===null||S.gWeek===undefined)S.gWeek=c.closed?"h":(c.last?c.last.n:0);
+  const wNow=c.closed?c.wFinal:cur?cur.w:null,wRef=c.closed?h.wFinal:cur?h.wk[cur.n].w:null;
+  const adgNow=c.closed?c.adgT:cur?cur.adgCum:null,adgRef=c.closed?h.adgT:cur?h.wk[cur.n].adgCum:null;
+  const mNow=c.closed?c.mort:M?M.mortCum:null,mRef=c.closed?h.mort:M?h.wk[M.n].mortCum:null;
+  let html=`<div class="flock-head"><h2>${flockName(f)}</h2><span class="muted">${esc(farmName(f.farm))} · ${cycLabel(f.cycle)} (${cycYears(f.cycle)})</span>${statusPill(c)}</div>
+  <div class="meta"><span>Inicio <b>${fd(f.start)}</b></span><span>${c.closed?"Cosecha":"Cosecha estimada"} <b>${fd(f.harvest)}</b></span><span>Aves recibidas <b>${fi(c.birds)}</b></span><span>Densidad <b>${fx(c.density,1)} aves/m²</b></span><span>Peso de recepción <b class="num">${fx(c.W0,3)} lb</b></span></div>
+  ${(i=>i.length?`<div class="banner warn">Revisa estos datos, parecen errores de captura: ${esc(i.join("; "))}.</div>`:"")(dataIssues(c))}
+  <div class="kpis">
+   ${kpi(c.closed?"Peso a cosecha":"Peso actual"+(cur?" (S"+cur.n+")":""),fx(wNow,2),"lb",ok(wRef)?`vs histórico ${diffTag(wNow,wRef)}`:"")}
+   ${kpi(c.closed?"Ganancia diaria total":"Ganancia diaria acumulada",fx(adgNow,3),"lb/día",ok(adgRef)?`vs histórico ${diffTag(adgNow,adgRef)}`:"")}
+   ${kpi("Mortalidad"+(c.closed?"":" acumulada"),pct(mNow),"",ok(mRef)?`histórico ${pct(mRef)} · ${diffPts(mNow,mRef,false)}`:"")}
+   ${kpi("Aves vivas",fi(c.closed?c.alive:M?M.alive:c.placedT),"",`viabilidad ${pct(c.closed?c.viab:M?100-M.mortCum:null)}`)}
+   ${c.closed?kpi("Edad de cosecha",fx(c.age,1),"días",ok(h.age)?`histórico ${fx(h.age,1)} días`:""):kpi("Día de edad",fi(c.dayNow),"días",`faltan ${f.harvest?Math.max(0,days(todayStr(),f.harvest)):"—"} días`)}
+   ${kpi("Conversión alimenticia",fx(c.closed?c.fcr:(cur?cur.fcr:null),3),"",c.closed&&ok(h.fcr)?`histórico ${fx(h.fcr,3)} · ${diffTag(c.fcr,h.fcr,false)}`:"se calcula al cierre")}
+   ${kpi("IEP",fi(c.eef),"",ok(c.eef)&&ok(h.eef)?`histórico ${fi(h.eef)} · ${diffTag(c.eef,h.eef)}`:"se calcula al cierre")}
+   ${kpi("Utilidad operativa",usdk(c.profit),"",ok(c.marginLb)?`margen ${usd(c.marginLb,4)}/lb`:c.closed?"falta costo o liquidación":"se calcula al cierre")}
+  </div>
+  <div class="grid3">
+   <div class="card"><div class="card-h"><h3>Curva de peso</h3></div><div class="chart" id="cGrowth"></div><div class="legend"><span><i style="background:var(--s1)"></i>${flockName(f)}</span><span><i style="background:var(--hist)"></i>Promedio histórico</span><span><i class="band" style="background:var(--band)"></i>Rango</span></div></div>
+   <div class="card"><div class="card-h"><h3>Mortalidad acumulada</h3></div><div class="chart" id="cMort"></div><div class="legend"><span><i style="background:var(--s1)"></i>${flockName(f)}</span><span><i style="background:var(--hist)"></i>Promedio histórico</span><span><i class="band" style="background:var(--band)"></i>Rango</span></div></div>
+   <div class="card"><div class="card-h"><h3>Ganancia diaria</h3></div><div class="chart" id="cAdg"></div><div class="legend"><span><i class="band" style="background:var(--s1)"></i>Esta parvada</span><span><i style="background:var(--ink-2)"></i>Promedio histórico</span></div></div>
+  </div>
+  <div class="card"><div class="card-h"><h3>Reporte por semana</h3><button class="btn" id="csvBtn" hidden>Descargar para Excel</button></div>
+  <div class="scroll"><table><thead><tr><th>Semana</th><th>Día</th><th>Peso (lb)</th><th>Ganancia</th><th>Gan. diaria sem.</th><th>Gan. diaria acum.</th><th>Crecimiento ×</th><th>Peso vs hist.</th><th>Variación entre galeras</th><th>Mort. sem</th><th>Mort. acum</th><th>Mort. vs hist.</th><th>Muertes acum</th><th>Aves vivas</th><th>Conversión</th><th>Conv. vs hist.</th></tr></thead><tbody>
+  ${c.weeks.map(r=>`<tr class="click ${S.gWeek===r.n?"sel":""}" data-week="${r.n}"><td>${r.n?"Semana "+r.n:"Recepción"}</td><td class="num">${r.day}</td><td class="num">${fx(r.w,3)}</td><td class="num">${fx(r.gain,3)}</td><td class="num">${fx(r.adg,3)}</td><td class="num">${fx(r.adgCum,3)}</td><td class="num">${fx(r.ratio,2)}</td><td class="num">${ok(r.w)?diffTag(r.w,h.wk[r.n].w):"—"}</td><td class="num">${ok(r.cv)?fx(r.cv,1)+"%":"—"}</td><td class="num ${mortClass(r.mortW,true)}">${r.n?pct(r.mortW):""}</td><td class="num">${r.n?pct(r.mortCum):""}</td><td class="num">${r.n&&ok(r.mortCum)?diffPts(r.mortCum,h.wk[r.n].mortCum,false,""):""}</td><td class="num">${r.n?fi(r.deathsCum):""}</td><td class="num">${fi(r.alive)}</td><td class="num">${r.n?fx(r.fcr,3):""}</td><td class="num">${r.n&&ok(r.fcr)?diffTag(r.fcr,h.wk[r.n].fcr,false):""}</td></tr>`).join("")}
+  <tr class="total click ${S.gWeek==="h"?"sel":""}" data-week="h"><td>Cosecha</td><td class="num">${fx(c.age,1)}</td><td class="num">${fx(c.wFinal,3)}</td><td class="num">${ok(c.wFinal)&&ok(c.W0)?fx(c.wFinal-c.W0,3):"—"}</td><td></td><td class="num">${fx(c.adgT,3)}</td><td></td><td class="num">${c.closed?diffTag(c.wFinal,h.wFinal):"—"}</td><td></td><td></td><td class="num">${pct(c.closed?c.mort:null)}</td><td class="num">${c.closed?diffPts(c.mort,h.mort,false,""):""}</td><td class="num">${fi(c.closed?c.dead:null)}</td><td class="num">${fi(c.closed?c.alive:null)}</td><td class="num">${fx(c.closed?c.fcr:null,3)}</td><td class="num">${c.closed?diffTag(c.fcr,h.fcr,false):""}</td></tr>
+  </tbody></table></div><p class="note">Toca una fila para ver el detalle por galera. Mortalidad vs histórico en puntos porcentuales.</p></div>
+  ${galeraCard(c,h)}
+  ${c.closed?closeCard(c,h):""}`;
+  el.innerHTML=html;
+  const xs=c.weeks.map(r=>({day:r.day,lab:r.n?"S"+r.n:"Recep."}));
+  curveChart($("#cGrowth"),{pts:c.weeks.map(r=>({day:r.day,v:r.w})),hist:h.wk.map((r,i)=>({day:c.weeks[i].day,v:r.w})),band:h.wk.map((r,i)=>({day:c.weeks[i].day,lo:r.min,hi:r.max})),d:2,unit:" lb",aria:"Curva de peso",xs,
+    tip:i=>{const r=c.weeks[i],hw=h.wk[i];if(!ok(r.w)&&!ok(hw.w))return "";return `<b>${r.n?"Semana "+r.n:"Recepción"} · día ${r.day}</b><br>Esta parvada: ${ok(r.w)?fx(r.w,3)+" lb":"sin pesaje"}<br>Histórico: ${fx(hw.w,3)} lb<br>Rango: ${fx(hw.min,2)} – ${fx(hw.max,2)} lb`}});
+  const mx=xs.slice(1);
+  curveChart($("#cMort"),{pts:c.weeks.slice(1).map(r=>({day:r.day,v:r.mortCum})),hist:h.wk.slice(1).map((r,i)=>({day:c.weeks[i+1].day,v:r.mortCum})),band:h.wk.slice(1).map((r,i)=>({day:c.weeks[i+1].day,lo:r.mMin,hi:r.mMax})),d:1,unit:"%",aria:"Mortalidad acumulada",xs:mx,
+    tip:i=>{const r=c.weeks[i+1],hw=h.wk[i+1];return `<b>Semana ${r.n}</b><br>Esta parvada: ${pct(r.mortCum)}<br>Histórico: ${pct(hw.mortCum)}<br>Rango: ${pct(hw.mMin)} – ${pct(hw.mMax)}`}});
+  const rows=c.weeks.slice(1);
+  barChart($("#cAdg"),rows.map(r=>({lab:"S"+r.n,v:r.adg,v2:h.wk[r.n].adg,r})),{d:2,fmt:v=>fx(v,2),aria:"Ganancia diaria por semana",H:260,tip:it=>`<b>Semana ${it.r.n}</b><br>Ganancia diaria: ${fx(it.v,3)} lb/día<br>Histórico: ${fx(it.v2,3)} lb/día`});
+  $("#cAdg svg line[stroke='var(--ink)']")&&el.querySelectorAll("#cAdg svg line[stroke='var(--ink)']").forEach(l=>l.setAttribute("stroke","var(--ink-2)"));
+  el.querySelectorAll("tr[data-week]").forEach(tr=>tr.addEventListener("click",()=>{S.gWeek=tr.dataset.week==="h"?"h":+tr.dataset.week;renderReporte();document.getElementById("gCard").scrollIntoView({block:"nearest",behavior:"smooth"})}));
+  el.querySelectorAll("[data-gweek]").forEach(b=>b.addEventListener("click",()=>{S.gWeek=b.dataset.gweek==="h"?"h":+b.dataset.gweek;renderReporte()}));
+  const cb=$("#csvBtn");if(S.dl){cb.hidden=false;cb.onclick=()=>exportFlock(c,h)}
+}
+function galeraCard(c,h){
+  const f=c.f;const n=S.gWeek;
+  const chips=`<div class="chips">${c.weeks.map(r=>`<button class="chip" data-gweek="${r.n}" aria-pressed="${n===r.n}">${r.n?"S"+r.n:"Recepción"}</button>`).join("")}<button class="chip" data-gweek="h" aria-pressed="${n==="h"}">Cosecha</button></div>`;
+  let body="";
+  if(n==="h"){
+    const W6=c.weeks[WEEKS-1];const aAvg=mean(f.hAge);
+    body=`<table><thead><tr><th>Galera</th><th>Aves recibidas</th><th>Mort. acum S6</th><th>Muertes</th><th>Edad cosecha (d)</th><th>Peso S6 / cosecha</th><th>Gan. diaria total</th><th>Quedados</th><th>% quedados</th></tr></thead><tbody>`;
+    for(let g=0;g<G;g++){
+      const pl=f.placed[g];const lastW=[...c.weeks].reverse().find(r=>ok(r.wg[g]));const wF=ok(f.hWt[g])?+f.hWt[g]:(lastW?+lastW.wg[g]:null);
+      const age=ok(f.hAge[g])?+f.hAge[g]:c.age;const adg=(ok(wF)&&ok(f.w[0][g])&&ok(age))?(wF-f.w[0][g])/age:null;
+      const lm=[...c.weeks].reverse().find(r=>ok(r.mg[g]));
+      body+=`<tr><td>G${g+1}</td><td class="num">${fi(pl)}</td><td class="num ${lm&&ok(c.mort)&&lm.mg[g]>c.mort+1.5?"dn":""}">${lm?pct(lm.mg[g]):"—"}</td><td class="num">${lm?fi(lm.deadG[g]):"—"}</td><td class="num ${ok(f.hAge[g])&&ok(aAvg)?(f.hAge[g]<aAvg-1?"up":f.hAge[g]>aAvg+1?"dn":""):""}">${fx(f.hAge[g],2)}</td><td class="num">${fx(wF,2)}</td><td class="num">${fx(adg,3)}</td><td class="num">${fi(f.left[g])}</td><td class="num">${ok(pl)&&ok(f.left[g])?pct(f.left[g]/pl*100):"—"}</td></tr>`;
+    }
+    body+=`<tr class="total"><td>Total / prom</td><td class="num">${fi(c.placedT)}</td><td class="num">${pct(W6.mortCum)}</td><td class="num">${fi(W6.deathsCum)}</td><td class="num">${fx(mean(f.hAge),2)}</td><td class="num">${fx(c.wFinal,2)}</td><td class="num">${fx(c.adgT,3)}</td><td class="num">${fi(c.leftT)}</td><td class="num">${pct(c.leftPct)}</td></tr></tbody></table>`;
+  } else {
+    const r=c.weeks[n],prev=n?c.weeks[n-1]:null;
+    const ranks=r.wg.map((v,i)=>({v,i})).filter(o=>ok(o.v)).sort((a,b)=>b.v-a.v);const best=ranks.length?ranks[0].i:-1,worst=ranks.length?ranks[ranks.length-1].i:-1;
+    body=`<table><thead><tr><th>Galera</th><th>Peso (lb)</th><th>vs prom.</th><th>Ganancia</th><th>Gan. diaria</th><th>Posición</th>${n?`<th>Mort. sem</th><th>Mort. acum</th><th>Muertes acum</th><th>Aves vivas</th><th>Conversión</th>`:`<th>Aves recibidas</th>`}</tr></thead><tbody>`;
+    for(let g=0;g<G;g++){
+      const v=r.wg[g];const pv=prev?prev.wg[g]:null;const gain=ok(v)&&ok(pv)?v-pv:null;const pl=f.placed[g];
+      const mc=n?r.mg[g]:null,mp=n>1?c.weeks[n-1].mg[g]:(n===1?0:null);const mw=ok(mc)&&ok(mp)?mc-mp:null;const pos=ranks.findIndex(o=>o.i===g);
+      body+=`<tr><td>G${g+1} ${g===best?'<span class="pill good">Mejor</span>':g===worst?'<span class="pill warn">Rezagada</span>':""}</td><td class="num">${fx(v,3)}</td><td class="num">${ok(v)?diffTag(v,r.w):"—"}</td><td class="num">${fx(gain,3)}</td><td class="num">${ok(gain)?fx(gain/7,3):"—"}</td><td class="num">${pos>=0?(pos+1)+" de "+ranks.length:"—"}</td>${n?`<td class="num ${mortClass(mw,true)}">${pct(mw)}</td><td class="num ${ok(mc)&&ok(r.mortCum)&&mc>r.mortCum+1.5?"dn":""}">${pct(mc)}</td><td class="num">${fi(r.deadG[g])}</td><td class="num">${ok(pl)&&ok(r.deadG[g])?fi(pl-r.deadG[g]):"—"}</td><td class="num">${fx(f.fcrW[n][g],3)}</td>`:`<td class="num">${fi(pl)}</td>`}</tr>`;
+    }
+    body+=`<tr class="total"><td>Promedio / total</td><td class="num">${fx(r.w,3)}</td><td class="num">${ok(r.cv)?"Variación "+fx(r.cv,1)+"%":""}</td><td class="num">${fx(r.gain,3)}</td><td class="num">${fx(r.adg,3)}</td><td class="num">${ok(r.min)?fx(r.max-r.min,2)+" lb rango":""}</td>${n?`<td class="num">${pct(r.mortW)}</td><td class="num">${pct(r.mortCum)}</td><td class="num">${fi(r.deathsCum)}</td><td class="num">${fi(r.alive)}</td><td class="num">${fx(r.fcr,3)}</td>`:`<td class="num">${fi(c.placedT)}</td>`}</tr></tbody></table>`;
+  }
+  return `<div class="card" id="gCard"><div class="card-h"><h3>Detalle por galera</h3>${chips}</div><div class="scroll">${body}</div></div>`;
+}
+function closeCard(c,h){
+  const k=(l,v,cls="")=>`<span class="${cls}">${l}</span><b class="${cls}">${v}</b>`;
+  const costs=c.C.costs?Object.entries(c.C.costs).sort((a,b)=>b[1]-a[1]):[];const mx=costs.length?costs[0][1]:1;
+  return `<div class="grid3">
+  <div class="card"><h3>Cierre de producción</h3><div class="kv">
+   ${k("Aves recibidas",fi(c.birds))}${k("Aves muertas",fi(c.dead))}${k("Mortalidad",pct(c.mort))}${k("Aves vivas",fi(c.alive))}
+   <div class="hr"></div>${k("Días de engorde",fx(c.age,2))}${k("Vaciado sanitario",ok(c.sanitary)?fx(c.sanitary,0)+" días":"—")}
+   ${k("Peso de raleo",ok(c.wThin)?fx(c.wThin,2)+" lb":"—")}${k("% de raleo",pct(c.thinPct,1))}${k("Peso a cosecha",fx(c.wFinal,3)+" lb")}
+   <div class="hr"></div>${k("Libras producidas",fi(c.lbs))}${k("Alimento consumido",fi(c.feedQQ)+" qq")}${k("Alimento por ave",fx(c.feedBird,2)+" lb")}
+   ${k("Conversión alimenticia",fx(c.fcr,3),"strong")}${k("IEP",fi(c.eef),"strong")}
+  </div></div>
+  <div class="card"><h3>Liquidación Cargill</h3><div class="kv">
+   ${k("Pago base",usd(c.pBase,4))}${k("Bono de conversión",usd(c.bConv,4))}${k("Bono por mejora",usd(c.bMejora,4))}${k("Bono por inversión",usd(c.bInv,4))}
+   ${k("Precio según tabla",usd(c.price,4))}${k("Precio liquidado",usd(c.liq,4)+(ok(c.C.liq)?"":" *"),"strong")}${k("Ingreso por pollo",usd(c.perBird,3))}
+   <div class="hr"></div>${k("Liquidación bruta",usd(c.income))}${k("Químicos de habilitación (Cargill)",ok(c.hab)?"−"+usd(c.hab):"—")}${k("Crédito neto a cuenta",usd(c.netIncome),"strong")}${k("Precio neto",usd(c.liqNet,4)+"/lb")}
+   <div class="hr"></div>${k("Costo operativo (incluye químicos)",usd(c.cost))}${k("Costo por libra",usd(c.costLb,4))}
+   ${k("Margen por libra",usd(c.marginLb,4),"strong")}${k("Utilidad operativa",usd(c.profit),"strong")}
+  </div>${ok(c.C.liq)?"":`<p class="src">* ${esc(c.liqSrc)}; registra la liquidación real en Captura → Cierre.</p>`}${c.habEst?`<p class="src">* Químicos estimados con el promedio que indicaste; corrígelos en Captura → Cierre cuando tengas el dato de Cargill.</p>`:""}
+  ${c.tab&&ok(c.fcr)?`<p class="src">Con la tabla 2025 este cierre (peso ${fx(c.wFinal,2)}, conversión ${fx(c.fcr,3)}) pagaría ${usd(c.tab.total,4)}/lb.</p>`:""}</div>
+  <div class="card"><h3>Costo de la parvada</h3>${costs.length?`<div class="hbar">${costs.slice(0,10).map(([n,v])=>`<span>${esc(n)}</span><span class="bar"><i style="width:${v/mx*100}%"></i></span><b>${usd(v)}</b>`).join("")}</div><p class="note">Total ${usd(c.cost)} · ${usd(c.costLb,4)} por libra${ok(h.costLb)?` (histórico ${usd(h.costLb,4)})`:""}.</p>`:`<p class="note">${ok(c.cost)?`Costo total ${usd(c.cost)} (${usd(c.costLb,4)}/lb). Sin detalle por categoría.`:"Sin costo registrado."}</p>`}</div>
+  </div>`;
+}
+function exportFlock(c,h){
+  const f=c.f;const L=[];const q=v=>ok(v)?String(+(+v).toFixed(4)):"";
+  L.push(["Granja",farmName(f.farm)],["Parvada",f.num],["Ciclo",cycLabel(f.cycle)],["Inicio",f.start],["Cosecha",f.harvest],[]);
+  L.push(["Semana","Día","Peso prom lb","Ganancia lb","Gan diaria sem","Gan diaria acum","Crecimiento x","Peso histórico","Variación galeras %","Mort sem %","Mort acum %","Mort histórica %","Muertes acum","Aves vivas","Conversión"]);
+  c.weeks.forEach(r=>L.push([r.n?"Semana "+r.n:"Recepción",r.day,q(r.w),q(r.gain),q(r.adg),q(r.adgCum),q(r.ratio),q(h.wk[r.n].w),q(r.cv),q(r.mortW),q(r.mortCum),q(h.wk[r.n].mortCum),q(r.deathsCum),q(r.alive),q(r.fcr)]));
+  L.push([]);L.push(["Galera","Aves recibidas",...c.weeks.map(r=>r.n?"Peso S"+r.n:"Peso recepción"),...c.weeks.slice(1).map(r=>"Mort acum S"+r.n),"Edad cosecha","Quedados"]);
+  for(let g=0;g<G;g++)L.push(["G"+(g+1),q(f.placed[g]),...c.weeks.map(r=>q(r.wg[g])),...c.weeks.slice(1).map(r=>q(r.mg[g])),q(f.hAge[g]),q(f.left[g])]);
+  L.push([],["Cierre"],["Aves recibidas",q(c.birds)],["Aves muertas",q(c.dead)],["Mortalidad %",q(c.mort)],["Aves vivas",q(c.alive)],["Días",q(c.age)],["Peso cosecha",q(c.wFinal)],["Libras",q(c.lbs)],["FCR",q(c.fcr)],["IEP",q(c.eef)],["Precio liquidado $/lb",q(c.liq)],["Liquidación bruta $",q(c.income)],["Costo $",q(c.cost)],["Costo $/lb",q(c.costLb)],["Margen $/lb",q(c.marginLb)],["Utilidad $",q(c.profit)]);
+  const csv="﻿"+L.map(r=>r.map(x=>{x=String(x??"");return /[,"\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x}).join(",")).join("\r\n");
+  S.dl.save({filename:`${farmName(f.farm)} - Parvada ${f.num}.csv`,data:csv}).then(()=>toast("Archivo listo")).catch(e=>{if(e&&e.code!=="declined")toast("No se pudo descargar el archivo")});
+}
+
+
+/* ---------- REPORTE SEMANAL (todas las parvadas, semana por semana) ---------- */
+const WMET={w:{lab:"Peso (lb)",d:3,hb:true,get:r=>r.w},adg:{lab:"Ganancia diaria de la semana (lb/día)",d:3,hb:true,get:r=>r.adg},adgCum:{lab:"Ganancia diaria acumulada (lb/día)",d:3,hb:true,get:r=>r.adgCum},
+  fcr:{lab:"Conversión acumulada",d:3,hb:false,get:r=>r.fcr},mortCum:{lab:"Mortalidad acumulada (%)",d:2,hb:false,get:r=>r.mortCum},mortW:{lab:"Mortalidad de la semana (%)",d:2,hb:false,get:r=>r.mortW}};
+function renderSemanal(){
+  const el=$("#v-semanal");const ff=farmFlocks(S.farm);
+  if(!ff.length){el.innerHTML=emptyState();return}
+  if(S.sWeek===undefined||S.sWeek===null)S.sWeek=5;if(!S.sMet)S.sMet="w";
+  const n=S.sWeek;const cs=ff.map(C_);const h=hist(S.farm,null);const hw=h.wk[n];
+  const rows=cs.map(c=>({c,r:c.weeks[n]})).filter(o=>ok(o.r.w)||ok(o.r.mortCum));
+  const ws=rows.map(o=>o.r.w).filter(ok);const srt=rows.filter(o=>ok(o.r.w)).sort((a,b)=>b.r.w-a.r.w);const best=srt[0],worst=srt[srt.length-1];
+  const wd=f=>f.start?fdShort(iso(new Date(pd(f.start).getTime()+(n?n*7:0)*864e5))):"—";
+  const M=WMET[S.sMet];
+  let html=`<div class="flock-head"><h2>Reporte semanal</h2><span class="muted">${esc(farmName(S.farm))} · cada parvada en la misma semana de edad</span></div>
+  <div class="row"><div class="chips" role="group" aria-label="Semana">${[0,1,2,3,4,5,6].map(k=>`<button class="chip" data-sw="${k}" aria-pressed="${n===k}">${k?"Semana "+k+" · día "+k*7:"Recepción · día 1"}</button>`).join("")}</div></div>
+  <div class="kpis">
+   ${kpi(`Peso promedio ${n?"S"+n:"de recepción"}`,fx(hw.w,3),"lb",`rango ${fx(hw.min,2)} – ${fx(hw.max,2)} lb · ${ws.length} parvadas`)}
+   ${n?kpi("Ganancia diaria de la semana",fx(hw.adg,3),"lb/día",`acumulada ${fx(hw.adgCum,3)} lb/día`):kpi("Aves recibidas prom.",fi(mean(cs.map(c=>c.placedT))),"","por parvada")}
+   ${n?kpi("Conversión acumulada",fx(hw.fcr,3),"",`promedio a los ${n*7} días`):kpi("Peso de recepción",fx(hw.w,3),"lb","pollito de 1 día")}
+   ${n?kpi("Mortalidad acumulada",pct(hw.mortCum),"",`de la semana ${pct(hw.mortW)}`):kpi("Mejor recepción",best?"P"+best.c.f.num:"—","",best?fx(best.r.w,3)+" lb":"")}
+  </div>
+  <div class="card"><div class="card-h"><h3>${n?"Semana "+n:"Recepción"} · todas las parvadas</h3><span class="src">${best&&worst?`Mejor peso: P${best.c.f.num} (${fx(best.r.w,3)} lb) · más bajo: P${worst.c.f.num} (${fx(worst.r.w,3)} lb)`:""}</span></div>
+  <div class="scroll"><table><thead><tr><th>Parvada</th><th>Ciclo</th><th>Fecha pesaje</th><th>Peso (lb)</th><th>vs prom.</th><th>Ganancia sem.</th><th>Gan. diaria sem.</th><th>Gan. diaria acum.</th><th>Conversión</th><th>Mort. sem.</th><th>Mort. acum.</th><th>Aves vivas</th><th>Variación galeras</th><th>Galera más baja</th></tr></thead><tbody>
+  ${rows.slice().reverse().map(({c,r})=>{const lo=r.wg.map((v,i)=>({v,i})).filter(o=>ok(o.v)).sort((a,b)=>a.v-b.v)[0];
+    return `<tr class="click" data-id="${c.f._id}"><td>${flockName(c.f)}</td><td>${cycLabel(c.cycle)}</td><td>${wd(c.f)}</td><td class="num">${fx(r.w,3)}</td><td class="num">${ok(r.w)?diffTag(r.w,hw.w):"—"}</td><td class="num">${fx(r.gain,3)}</td><td class="num">${fx(r.adg,3)}</td><td class="num">${fx(r.adgCum,3)}</td><td class="num">${n?fx(r.fcr,3):""}</td><td class="num ${mortClass(r.mortW,true)}">${n?pct(r.mortW):""}</td><td class="num">${n?pct(r.mortCum):""}</td><td class="num">${fi(r.alive)}</td><td class="num">${ok(r.cv)?fx(r.cv,1)+"%":"—"}</td><td>${lo?`G${lo.i+1} · ${fx(lo.v,2)}`:"—"}</td></tr>`}).join("")}
+  <tr class="total"><td>Promedio</td><td></td><td></td><td class="num">${fx(hw.w,3)}</td><td></td><td class="num">${n&&ok(hw.adg)?fx(hw.adg*7,3):""}</td><td class="num">${fx(hw.adg,3)}</td><td class="num">${fx(hw.adgCum,3)}</td><td class="num">${n?fx(hw.fcr,3):""}</td><td class="num">${n?pct(hw.mortW):""}</td><td class="num">${n?pct(hw.mortCum):""}</td><td></td><td></td><td></td></tr>
+  </tbody></table></div><p class="note">Toca una parvada para abrir su reporte completo. La fecha de pesaje es la fecha de inicio más ${n*7||0} días.</p></div>
+  <div class="card"><div class="card-h"><h3>${esc(M.lab)} por parvada</h3></div><div class="chart" id="swChart"></div></div>
+  <div class="card"><div class="card-h"><h3>Semana por semana</h3><select id="sMet" aria-label="Indicador">${Object.entries(WMET).map(([k,m])=>`<option value="${k}" ${k===S.sMet?"selected":""}>${m.lab}</option>`).join("")}</select></div>
+  <div class="scroll"><table><thead><tr><th>Parvada</th>${[0,1,2,3,4,5,6].map(k=>`<th>${k?"S"+k:"Recep."}</th>`).join("")}<th>Cosecha</th></tr></thead><tbody>
+  ${cs.slice().reverse().map(c=>`<tr class="click" data-id="${c.f._id}"><td>${flockName(c.f)}</td>${c.weeks.map(r=>{const v=M.get(r),a=M.get(h.wk[r.n]);const d=diffPct(v,a);const good=M.hb?d>0:d<0;return `<td class="num ${ok(d)&&Math.abs(d)>3?(good?"up":"dn"):""}">${ok(v)?fx(v,M.d):"—"}</td>`}).join("")}<td class="num">${S.sMet==="w"?fx(c.wFinal,3):S.sMet==="fcr"?fx(c.fcr,3):S.sMet==="mortCum"?pct(c.mort):S.sMet==="adgCum"?fx(c.adgT,3):"—"}</td></tr>`).join("")}
+  <tr class="total"><td>Promedio</td>${h.wk.map(r=>`<td class="num">${fx(M.get(r),M.d)}</td>`).join("")}<td class="num">${S.sMet==="w"?fx(h.wFinal,3):S.sMet==="fcr"?fx(h.fcr,3):S.sMet==="mortCum"?pct(h.mort):S.sMet==="adgCum"?fx(h.adgT,3):"—"}</td></tr>
+  </tbody></table></div><p class="note">En verde: más de 3% mejor que el promedio de esa semana; en rojo: más de 3% peor.</p></div>`;
+  el.innerHTML=html;
+  const avg=mean(rows.map(o=>M.get(o.r)));
+  barChart($("#swChart"),rows.map(({c,r})=>({key:c.f._id,lab:"P"+c.f.num,v:M.get(r),c})),{fmt:v=>fx(v,M.d>2?2:M.d),aria:M.lab,avg,zero:S.sMet==="mortCum"||S.sMet==="mortW",onClick:it=>goFlock(it.key),
+    tip:it=>`<b>${flockName(it.c.f)}</b> · ${n?"semana "+n:"recepción"}<br>${M.lab}: ${ok(it.v)?fx(it.v,M.d):"sin dato"}<br>vs promedio: ${ok(it.v)?diffTag(it.v,avg,M.hb).replace(/class="[^"]*"/,""):"—"}`});
+  el.querySelectorAll("[data-sw]").forEach(b=>b.addEventListener("click",()=>{S.sWeek=+b.dataset.sw;renderSemanal()}));
+  $("#sMet").addEventListener("change",e=>{S.sMet=e.target.value;renderSemanal()});
+  el.querySelectorAll("tr[data-id]").forEach(tr=>tr.addEventListener("click",()=>goFlock(tr.dataset.id)));
+}
+/* ---------- COMPARATIVO ---------- */
+const METRICS={
+  wFinal:{lab:"Peso a cosecha (lb)",d:2,get:c=>c.wFinal,hb:true,z:false},
+  fcr:{lab:"Conversión alimenticia",d:3,get:c=>c.fcr,hb:false,z:false},
+  mort:{lab:"Mortalidad (%)",d:2,get:c=>c.mort,hb:false,z:true},
+  eef:{lab:"IEP",d:0,get:c=>c.eef,hb:true,z:false},
+  adgT:{lab:"Ganancia diaria total (lb/día)",d:3,get:c=>c.adgT,hb:true,z:false},
+  age:{lab:"Edad de cosecha (días)",d:1,get:c=>c.age,hb:false,z:false},
+  lbs:{lab:"Libras producidas",d:0,get:c=>c.lbs,hb:true,z:false,f:lbk},
+  liq:{lab:"Precio liquidado ($/lb)",d:4,get:c=>c.liq,hb:true,z:false,f:v=>"$"+fx(v,4)},
+  costLb:{lab:"Costo por libra ($)",d:4,get:c=>c.costLb,hb:false,z:false,f:v=>"$"+fx(v,4)},
+  marginLb:{lab:"Margen por libra ($)",d:4,get:c=>c.marginLb,hb:true,z:true,f:v=>"$"+fx(v,4)},
+  profit:{lab:"Utilidad operativa ($)",d:0,get:c=>c.profit,hb:true,z:true,f:usdk},
+  leftT:{lab:"Pollos quedados",d:0,get:c=>c.leftT,hb:false,z:true}
+};
+function renderComparativo(){
+  const el=$("#v-comparativo");const ff=farmFlocks(S.farm);
+  if(!ff.length){el.innerHTML=emptyState();return}
+  const cs=ff.map(C_);const h=hist(S.farm,null);
+  let html=`<div class="flock-head"><h2>Comparativo de parvadas</h2><span class="muted">${esc(farmName(S.farm))} · ${ff.length} parvadas</span></div>
+  <div class="card"><div class="card-h"><h3>Evolución por parvada</h3><select id="metricSel" aria-label="Indicador">${Object.entries(METRICS).map(([k,m])=>`<option value="${k}" ${k===S.chartMetric?"selected":""}>${m.lab}</option>`).join("")}</select></div><div class="chart" id="cFlocks"></div><p class="note">La barra oscura es la parvada seleccionada. Toca una barra para abrir su reporte.</p></div>
+  <div class="card"><h3>Todas las parvadas</h3><div class="scroll"><table><thead><tr><th>Parvada</th><th>Ciclo</th><th>Inicio</th><th>Estado</th><th>Aves</th><th>Mort. %</th><th>Edad</th>${[1,2,3,4,5].map(n=>`<th>S${n}</th>`).join("")}<th>Peso cosecha</th><th>Conversión</th><th>IEP</th><th>Precio $/lb</th><th>Costo $/lb</th><th>Margen $/lb</th><th>Utilidad</th><th>Quedados</th></tr></thead><tbody>
+  ${cs.slice().reverse().map(c=>`<tr class="click ${c.f._id===S.sel?"sel":""}" data-id="${c.f._id}"><td>${flockName(c.f)}</td><td>${cycLabel(c.cycle)}</td><td>${fdShort(c.f.start)}</td><td>${c.closed?"Cerrada":'<span class="pill good live">En curso</span>'}</td><td class="num">${fi(c.birds)}</td><td class="num ${mortClass(c.mort,false)}">${pct(c.closed?c.mort:c.lastM?c.lastM.mortCum:null)}</td><td class="num">${fx(c.age,1)}</td>${[1,2,3,4,5].map(n=>{const w=c.weeks[n].w,d=diffPct(w,h.wk[n].w);return `<td class="num ${ok(d)?(d>3?"up":d<-3?"dn":""):""}">${fx(w,2)}</td>`}).join("")}<td class="num">${fx(c.wFinal,2)}</td><td class="num">${fx(c.fcr,3)}</td><td class="num">${fi(c.eef)}</td><td class="num">${ok(c.liq)?fx(c.liq,4):"—"}</td><td class="num">${ok(c.costLb)?fx(c.costLb,4):"—"}</td><td class="num ${ok(c.marginLb)&&c.marginLb<0?"dn":""}">${ok(c.marginLb)?fx(c.marginLb,4):"—"}</td><td class="num">${usdk(c.profit)}</td><td class="num">${fi(c.leftT)}</td></tr>`).join("")}
+  <tr class="total"><td>Promedio</td><td></td><td></td><td></td><td></td><td class="num">${pct(h.mort)}</td><td class="num">${fx(h.age,1)}</td>${[1,2,3,4,5].map(n=>`<td class="num">${fx(h.wk[n].w,2)}</td>`).join("")}<td class="num">${fx(h.wFinal,2)}</td><td class="num">${fx(h.fcr,3)}</td><td class="num">${fi(h.eef)}</td><td class="num">${fx(h.liq,4)}</td><td class="num">${fx(h.costLb,4)}</td><td class="num">${fx(h.marginLb,4)}</td><td class="num">${usdk(h.profit)}</td><td class="num">${fi(h.leftT)}</td></tr>
+  </tbody></table></div><p class="note">Pesos semanales en verde: más de 3% arriba del promedio; en rojo: más de 3% abajo.</p></div>
+  ${galeraHistory(cs)}`;
+  el.innerHTML=html;
+  const draw=()=>{const M=METRICS[S.chartMetric];const avg=mean(cs.map(M.get));
+    barChart($("#cFlocks"),cs.map(c=>({key:c.f._id,lab:String(c.f.num),v:M.get(c),c})),{fmt:M.f||(v=>fx(v,M.d>2?3:M.d)),aria:M.lab,avg,zero:M.z,hl:S.sel,onClick:it=>goFlock(it.key),
+      tip:it=>`<b>${flockName(it.c.f)}</b> · ${cycLabel(it.c.cycle)}<br>${M.lab}: ${ok(it.v)?(M.f?M.f(it.v):fx(it.v,M.d)):"sin dato"}<br>vs promedio: ${ok(it.v)?diffTag(it.v,avg,M.hb).replace(/class="[^"]*"/,""):"—"}`})};
+  draw();$("#metricSel").addEventListener("change",e=>{S.chartMetric=e.target.value;draw()});
+  el.querySelectorAll("tr[data-id]").forEach(tr=>tr.addEventListener("click",()=>goFlock(tr.dataset.id)));
+}
+function galeraHistory(cs){
+  const closed=cs.filter(c=>c.closed);if(!closed.length)return "";
+  const rows=[];
+  for(let g=0;g<G;g++){
+    const rel=closed.map(c=>{const v=c.weeks[5].wg[g],a=c.weeks[5].w;return ok(v)&&ok(a)?(v-a)/a*100:null}).filter(ok);
+    const mrel=closed.map(c=>{const v=c.weeks[6].mg[g],a=c.weeks[6].mortCum;return ok(v)&&ok(a)?v-a:null}).filter(ok);
+    rows.push({g,w5:mean(closed.map(c=>c.weeks[5].wg[g])),rel:mean(rel),m6:mean(closed.map(c=>c.weeks[6].mg[g])),mrel:mean(mrel),age:mean(closed.map(c=>c.f.hAge[g])),left:mean(closed.map(c=>c.f.left[g])),beat:rel.filter(x=>x>0).length,n:rel.length});
+  }
+  const sorted=rows.slice().sort((a,b)=>(b.rel??-99)-(a.rel??-99));
+  return `<div class="card"><h3>Desempeño histórico por galera</h3><p class="note">Cada galera comparada contra el promedio de su propia parvada, a lo largo de ${closed.length} parvadas cerradas. Sirve para detectar galeras con problemas de equipo, ventilación o densidad.</p><div class="scroll"><table><thead><tr><th>Galera</th><th>Peso S5 prom</th><th>Peso vs su parvada</th><th>Veces arriba</th><th>Mort. acum S6</th><th>Mort. vs su parvada</th><th>Edad cosecha</th><th>Quedados prom</th></tr></thead><tbody>
+  ${sorted.map((r,i)=>`<tr><td>G${r.g+1} ${i===0?'<span class="pill good">Mejor</span>':i===sorted.length-1?'<span class="pill warn">Más baja</span>':""}</td><td class="num">${fx(r.w5,2)}</td><td class="num ${ok(r.rel)?(r.rel>1?"up":r.rel<-1?"dn":""):""}">${ok(r.rel)?(r.rel>=0?"+":"")+fx(r.rel,1)+"%":"—"}</td><td class="num">${r.beat} de ${r.n}</td><td class="num">${pct(r.m6)}</td><td class="num ${ok(r.mrel)?(r.mrel>0.3?"dn":r.mrel<-0.3?"up":""):""}">${ok(r.mrel)?(r.mrel>=0?"+":"")+fx(r.mrel,2)+" puntos":"—"}</td><td class="num">${fx(r.age,1)}</td><td class="num">${fi(r.left)}</td></tr>`).join("")}
+  </tbody></table></div></div>`;
+}
+
+
+/* ---------- COSTOS POR PARVADA ---------- */
+function payByP(farm){const m={};allPayments(farm).forEach(r=>{if(r.p)m[r.p]=(m[r.p]||0)+(r.usd||0)});return m}
+function renderCostos(){
+  const el=$("#v-costos");const farm=S.farm;
+  const all=farmFlocks(farm).map(C_).filter(c=>ok(c.cost));
+  if(!all.length){el.innerHTML=emptyState();return}
+  const cycs=[...new Set(all.map(c=>c.cycle))].sort((a,b)=>a-b);
+  if(S.costCyc!=="all"&&!cycs.includes(S.costCyc))S.costCyc=lastFullCycle(farm)||cycs[cycs.length-1];
+  const sel=S.costCyc==="all"?all:all.filter(c=>c.cycle===S.costCyc);
+  const withCat=sel.filter(c=>c.C.costs);
+  const prevCs=S.costCyc!=="all"?all.filter(c=>c.cycle===S.costCyc-1):[];
+  const avgCost=mean(sel.map(c=>c.cost)),avgLb=sum(sel.map(c=>c.cost))/sum(sel.map(c=>c.lbs));
+  const pAvg=prevCs.length?mean(prevCs.map(c=>c.cost)):null,pLb=prevCs.length?sum(prevCs.map(c=>c.cost))/sum(prevCs.map(c=>c.lbs)):null;
+  const cats={};withCat.forEach(c=>Object.entries(c.C.costs).forEach(([k,v])=>{(cats[k]=cats[k]||[]).push(v)}));
+  const keys=Object.keys(cats).sort((a,b)=>sum(cats[b])-sum(cats[a]));const totCat=sum(keys.map(k=>sum(cats[k])));
+  const PP=payByP(farm);
+  let html=`<div class="flock-head"><h2>Costo por parvada</h2><span class="muted">${esc(farmName(farm))} · hoja “Costo x PV”</span></div>
+  <div class="row"><div class="seg" role="group" aria-label="Ciclo">${cycs.map(y=>`<button data-cc="${y}" aria-pressed="${S.costCyc===y}">${cycLabel(y)}</button>`).join("")}<button data-cc="all" aria-pressed="${S.costCyc==="all"}">Todas</button></div></div>
+  <div class="kpis">
+   ${kpi("Costo promedio por parvada",usd(avgCost),"",ok(pAvg)?diffTag(avgCost,pAvg,false)+` vs ${cycLabel(S.costCyc-1)}`:`${sel.length} parvadas`)}
+   ${kpi("Costo por libra",usd(avgLb,4),"",ok(pLb)?diffTag(avgLb,pLb,false)+` vs ${cycLabel(S.costCyc-1)}`:"")}
+   ${kpi("Rubro más grande",keys.length?esc(keys[0]):"—","",keys.length?`${fx(sum(cats[keys[0]])/totCat*100,0)}% del costo · ${usd(mean(cats[keys[0]]))} por parvada`:"sin detalle por rubro")}
+   ${kpi("Parvada más cara",(x=>x?"P"+x.f.num:"—")(sel.slice().sort((a,b)=>b.cost-a.cost)[0]),"",(x=>x?`${usd(x.cost)} · ${usd(x.costLb,4)}/lb`:"")(sel.slice().sort((a,b)=>b.cost-a.cost)[0]))}
+  </div>
+  <div class="grid2 eq">
+   <div class="card"><h3>Costo total por parvada</h3><div class="chart" id="ccTot"></div></div>
+   <div class="card"><h3>Costo por libra</h3><div class="chart" id="ccLb"></div></div>
+  </div>`;
+  if(withCat.length){
+    const cols=withCat;
+    html+=`<div class="card"><div class="card-h"><h3>Detalle por rubro · ${S.costCyc==="all"?"todas las parvadas":cycLabel(S.costCyc)}</h3><span class="src">En rojo: 25% o más arriba del promedio del rubro · en verde: 25% o más abajo</span></div>
+    <div class="scroll"><table><thead><tr><th>Rubro</th>${cols.map(c=>`<th><a href="#" data-go="${c.f._id}" style="color:inherit">P${c.f.num}</a></th>`).join("")}<th>Promedio</th><th>% del total</th></tr></thead><tbody>
+    ${keys.map(k=>{const av=mean(cats[k]);return `<tr><td>${esc(k)}</td>${cols.map(c=>{const v=c.C.costs[k];const d=diffPct(v,av);return `<td class="num ${ok(d)&&av>300?(d>25?"dn":d<-25?"up":""):""}">${ok(v)?usd(v):"—"}</td>`}).join("")}<td class="num" style="font-weight:600">${usd(av)}</td><td class="num">${fx(sum(cats[k])/totCat*100,1)}%</td></tr>`}).join("")}
+    <tr class="total"><td>Total</td>${cols.map(c=>`<td class="num">${usd(c.cost)}</td>`).join("")}<td class="num">${usd(mean(cols.map(c=>c.cost)))}</td><td class="num">100%</td></tr>
+    <tr><td>Libras producidas</td>${cols.map(c=>`<td class="num">${lbk(c.lbs)}</td>`).join("")}<td class="num">${lbk(mean(cols.map(c=>c.lbs)))}</td><td></td></tr>
+    <tr><td>Costo por libra</td>${cols.map(c=>`<td class="num">${usd(c.costLb,4)}</td>`).join("")}<td class="num">${usd(sum(cols.map(c=>c.cost))/sum(cols.map(c=>c.lbs)),4)}</td><td></td></tr>
+    <tr><td>Pagos registrados con ese #P</td>${cols.map(c=>`<td class="num muted">${usd(PP["P"+c.f.num])}</td>`).join("")}<td></td><td></td></tr>
+    </tbody></table></div>
+    <p class="note">“Pagos registrados con ese #P” suma el detalle de pagos marcado con ese número de parvada. No siempre cuadra con el costo, porque un pago puede corresponder a otra parvada o incluir inversiones.</p></div>`;
+    const yrs=[...new Set(all.filter(c=>c.C.costs).map(c=>c.cycle))].sort((a,b)=>a-b);
+    const yc=yrs.map(y=>{const cs=all.filter(c=>c.cycle===y&&c.C.costs);const o={};cs.forEach(c=>Object.entries(c.C.costs).forEach(([k,v])=>{o[k]=(o[k]||0)+v}));return {y,n:cs.length,o}});
+    html+=`<div class="card"><h3>Promedio por parvada por año</h3><div class="scroll"><table><thead><tr><th>Rubro</th>${yc.map(x=>`<th>${cycLabel(x.y)}<br><span style="font-weight:500">${x.n} parvadas</span></th>`).join("")}<th>Último vs anterior</th></tr></thead><tbody>
+    ${keys.map(k=>{const vs=yc.map(x=>ok(x.o[k])?x.o[k]/x.n:null);return `<tr><td>${esc(k)}</td>${vs.map(v=>`<td class="num">${usd(v)}</td>`).join("")}<td class="num">${vs.length>1?diffTag(vs[vs.length-1],vs[vs.length-2],false):""}</td></tr>`}).join("")}
+    <tr class="total"><td>Total por parvada</td>${yc.map(x=>`<td class="num">${usd(sum(Object.values(x.o))/x.n)}</td>`).join("")}<td></td></tr></tbody></table></div></div>`;
+  }
+  el.innerHTML=html;
+  const items=sel.map(c=>({key:c.f._id,lab:"P"+c.f.num,c}));
+  barChart($("#ccTot"),items.map(i=>({...i,v:i.c.cost})),{fmt:usdk,aria:"Costo por parvada",avg:avgCost,zero:true,onClick:it=>goFlock(it.key),tip:it=>`<b>${flockName(it.c.f)}</b><br>Costo: ${usd(it.c.cost)}<br>${usd(it.c.costLb,4)}/lb`});
+  barChart($("#ccLb"),items.map(i=>({...i,v:i.c.costLb})),{fmt:v=>"$"+fx(v,3),aria:"Costo por libra",avg:avgLb,zero:true,onClick:it=>goFlock(it.key),tip:it=>`<b>${flockName(it.c.f)}</b><br>${usd(it.c.costLb,4)}/lb`});
+  el.querySelectorAll("[data-cc]").forEach(b=>b.addEventListener("click",()=>{S.costCyc=b.dataset.cc==="all"?"all":+b.dataset.cc;renderCostos()}));
+  el.querySelectorAll("[data-go]").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();goFlock(a.dataset.go)}));
+}
+
+/* ---------- DETALLE DE PAGOS ---------- */
+const METODO={EF:"Efectivo",TC:"Tarjeta",TF:"Transferencia",CK:"Cheque"};
+function allPayments(farm){
+  const out=[];[...S.pay.values()].filter(d=>d.farm===farm).forEach(d=>(d.rows||[]).forEach((r,i)=>out.push(Object.assign({_doc:d._id,_i:i},r))));
+  return out.sort((a,b)=>b.d.localeCompare(a.d));
+}
+const pNum=p=>{const m=/^P(\d+)$/.exec(p||"");return m?+m[1]:null};
+function payCycle(r){const n=pNum(r.p);if(n){const f=S.flocks.get(S.farm+"-"+String(n).padStart(2,"0"));if(f&&ok(f.cycle))return f.cycle;return cycOf(n)}return null}
+function renderPagos(){
+  const el=$("#v-pagos");const farm=S.farm;const rows=allPayments(farm);
+  if(!S.pf)S.pf={q:"",cyc:"",p:"",c:"",k:"",m:"",from:"",to:"",lim:150};
+  const F=S.pf;
+  if(!rows.length&&S.loaded){el.innerHTML=`<div class="empty"><h2>Sin pagos registrados</h2><p>Agrega el primer pago con el formulario de abajo.</p></div>${payForm(farm,[])}`;bindPayForm(farm);return}
+  const uniq=k=>[...new Set(rows.map(r=>r[k]).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),"es",{numeric:true}));
+  const cycs=[...new Set(rows.map(payCycle).filter(ok))].sort((a,b)=>a-b);
+  const q=F.q.trim().toLowerCase();
+  const fr=rows.filter(r=>(!q||(r.b||"").toLowerCase().includes(q)||(r.t||"").toLowerCase().includes(q))&&(!F.cyc||payCycle(r)===+F.cyc)&&(!F.p||r.p===F.p)&&(!F.c||r.c===F.c)&&(!F.k||r.k===F.k)&&(!F.m||r.m===F.m)&&(!F.from||r.d>=F.from)&&(!F.to||r.d<=F.to));
+  const tot=sum(fr.map(r=>r.usd))||0;
+  const grp=k=>{const o={};fr.forEach(r=>{const x=r[k]||"(sin dato)";o[x]=(o[x]||0)+(r.usd||0)});return Object.entries(o).sort((a,b)=>b[1]-a[1])};
+  const byC=grp("c"),byB=grp("b");const mc=byC.length?byC[0][1]:1,mb=byB.length?byB[0][1]:1;
+  const sel=(id,lab,opts,val,fmt=x=>x)=>`<label class="field">${lab}<select id="${id}"><option value="">Todos</option>${opts.map(o=>`<option value="${esc(o)}" ${String(o)===String(val)?"selected":""}>${esc(fmt(o))}</option>`).join("")}</select></label>`;
+  let html=`<div class="flock-head"><h2>Detalle de pagos</h2><span class="muted">${esc(farmName(farm))} · control de efectivo · ${fi(rows.length)} pagos</span></div>
+  <div class="card"><div class="row">
+   <label class="field" style="flex:1;min-width:200px">Buscar beneficiario o concepto<input type="text" id="pfQ" value="${esc(F.q)}" placeholder="Ej. RAMAQ, cascarilla, nómina"></label>
+   ${sel("pfCyc","Ciclo",cycs,F.cyc,cycLabel)}${sel("pfP","Parvada (#P)",uniq("p"),F.p)}${sel("pfC","Categoría",uniq("c"),F.c)}${sel("pfK","Banco",uniq("k"),F.k)}${sel("pfM","Forma de pago",uniq("m"),F.m,x=>METODO[x]||x)}
+   <label class="field">Desde<input type="date" id="pfFrom" value="${esc(F.from)}"></label><label class="field">Hasta<input type="date" id="pfTo" value="${esc(F.to)}"></label>
+   <button class="btn" id="pfClear">Limpiar filtros</button>
+  </div></div>
+  <div class="kpis">
+   ${kpi("Total pagado",usd(tot),"dólares",`${fi(fr.length)} pagos`)}
+   ${kpi("Pago promedio",usd(fr.length?tot/fr.length:null),"dólares","")}
+   ${kpi("Categoría principal",byC.length?esc(byC[0][0]):"—","",byC.length&&tot?`${usd(byC[0][1])} · ${fx(byC[0][1]/tot*100,0)}%`:"")}
+   ${kpi("Beneficiario principal",byB.length?esc(byB[0][0]):"—","",byB.length&&tot?`${usd(byB[0][1])} · ${fx(byB[0][1]/tot*100,0)}%`:"")}
+  </div>
+  <div class="grid2">
+   <div class="card"><h3>Por categoría</h3><div class="hbar">${byC.slice(0,12).map(([k,v])=>`<span>${esc(k)}</span><span class="bar"><i style="width:${v/mc*100}%"></i></span><b>${usd(v)}</b>`).join("")}</div></div>
+   <div class="card"><h3>Principales beneficiarios</h3><div class="hbar">${byB.slice(0,12).map(([k,v])=>`<span>${esc(k)}</span><span class="bar"><i style="width:${v/mb*100}%"></i></span><b>${usd(v)}</b>`).join("")}</div></div>
+  </div>
+  <div class="card"><div class="card-h"><h3>Pagos por parvada (US$)</h3><span class="src">Según el #P de cada pago, con los filtros aplicados</span></div><div class="chart" id="pgP"></div></div>
+  <div class="card"><div class="card-h"><h3>Pagos</h3><div class="row"><span class="src">Mostrando ${fi(Math.min(F.lim,fr.length))} de ${fi(fr.length)}</span><button class="btn" id="pgCsv" ${S.dl?"":"hidden"}>Descargar para Excel</button></div></div>
+  <div class="scroll"><table><thead><tr><th>Fecha</th><th>#P</th><th>Categoría</th><th>Beneficiario</th><th style="text-align:left">Concepto</th><th>Banco</th><th>Forma</th><th>Subtotal</th><th>Ret. 2%</th><th>Ret. 1%</th><th>IVA</th><th>Total</th><th>Tipo de cambio</th><th>US$</th><th></th></tr></thead><tbody>
+  ${fr.slice(0,F.lim).map(r=>`<tr><td>${fdShort(r.d)}</td><td>${esc(r.p||"")}</td><td style="text-align:left">${esc(r.c)}</td><td style="text-align:left;white-space:normal;min-width:160px">${esc(r.b)}</td><td style="text-align:left;white-space:normal;min-width:260px">${esc(r.t)}</td><td>${esc(r.k||"")}</td><td>${esc(METODO[r.m]||r.m||"")}</td><td class="num">${fx(r.s,2)}</td><td class="num">${fx(r.r2,2)}</td><td class="num">${fx(r.r1,2)}</td><td class="num">${fx(r.iva,2)}</td><td class="num">${fx(r.tot,2)}</td><td class="num">${fx(r.tc,4)}</td><td class="num" style="font-weight:600">${fx(r.usd,2)}</td><td>${S.delPay===r._doc+":"+r._i?`<button class="btn danger" data-delyes="${r._doc}:${r._i}">Eliminar</button>`:`<button class="btn" data-del="${r._doc}:${r._i}" aria-label="Eliminar pago" ${S.readonly||!S.db?"disabled":""}>×</button>`}</td></tr>`).join("")}
+  </tbody></table></div>${fr.length>F.lim?`<div class="row" style="justify-content:center"><button class="btn" id="pgMore">Mostrar 150 más</button></div>`:""}
+  <p class="src">Montos en la moneda del banco (C$ o $). La columna US$ es el monto en dólares con el tipo de cambio de la fila. Forma de pago: EF efectivo, TC tarjeta, TF transferencia, CK cheque.</p></div>
+  ${payForm(farm,rows)}`;
+  el.innerHTML=html;
+  const byP={};fr.forEach(r=>{if(pNum(r.p)){byP[r.p]=(byP[r.p]||0)+(r.usd||0)}});
+  const pk=Object.keys(byP).sort((a,b)=>pNum(a)-pNum(b));
+  barChart($("#pgP"),pk.map(p=>({key:p,lab:p,v:byP[p]})),{fmt:usdk,aria:"Pagos por parvada",avg:mean(pk.map(p=>byP[p])),zero:true,tip:it=>`<b>${it.lab}</b><br>${usd(it.v)}`,onClick:it=>{S.pf.p=it.key;renderPagos()}});
+  const upd=()=>{Object.assign(F,{q:$("#pfQ").value,cyc:$("#pfCyc").value,p:$("#pfP").value,c:$("#pfC").value,k:$("#pfK").value,m:$("#pfM").value,from:$("#pfFrom").value,to:$("#pfTo").value,lim:150});renderPagos()};
+  ["pfCyc","pfP","pfC","pfK","pfM","pfFrom","pfTo"].forEach(id=>$("#"+id).addEventListener("change",upd));
+  let tq;$("#pfQ").addEventListener("input",()=>{clearTimeout(tq);tq=setTimeout(()=>{upd();const i=$("#pfQ");i.focus();i.setSelectionRange(i.value.length,i.value.length)},350)});
+  $("#pfClear").addEventListener("click",()=>{S.pf=null;renderPagos()});
+  const more=$("#pgMore");if(more)more.addEventListener("click",()=>{F.lim+=150;renderPagos()});
+  const cb=$("#pgCsv");if(cb&&S.dl)cb.addEventListener("click",()=>{
+    const H=["Fecha","#P","Categoría","Forma","Beneficiario","Concepto","Banco","Subtotal","Ret 2%","Ret 1%","IVA","Total","Tipo de cambio","US$"];
+    const L=[H,...fr.map(r=>[r.d,r.p,r.c,METODO[r.m]||r.m,r.b,r.t,r.k,r.s,r.r2,r.r1,r.iva,r.tot,r.tc,r.usd])];
+    const csv="﻿"+L.map(r=>r.map(x=>{x=String(x??"");return /[,"\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x}).join(",")).join("\r\n");
+    S.dl.save({filename:`Pagos ${farmName(farm)}.csv`,data:csv}).then(()=>toast("Archivo listo")).catch(e=>{if(e&&e.code!=="declined")toast("No se pudo descargar")})});
+  el.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",()=>{S.delPay=b.dataset.del;renderPagos()}));
+  el.querySelectorAll("[data-delyes]").forEach(b=>b.addEventListener("click",async()=>{const [docId,i]=b.dataset.delyes.split(":");const d=S.pay.get(docId);if(!d)return;
+    const body=stripId(d);body.rows=body.rows.filter((_,j)=>j!==+i);S.delPay=null;
+    try{await S.db.doc("payments/"+docId).set(JSON.parse(JSON.stringify(body)));toast("Pago eliminado")}catch(e){toast("No se pudo eliminar: "+(e.message||e.code))}}));
+  bindPayForm(farm);
+}
+function payForm(farm,rows){
+  const cats=[...new Set(rows.map(r=>r.c))].sort(),bens=[...new Set(rows.map(r=>r.b))].sort(),banks=[...new Set(rows.map(r=>r.k).filter(Boolean))].sort();
+  const lastTc=rows.length&&rows[0].tc?rows[0].tc:36.6243;const lastP=farmFlocks(farm).slice(-1)[0];
+  return `<div class="card"><h3>Registrar pago</h3>
+  <datalist id="dlCat">${cats.map(c=>`<option value="${esc(c)}">`).join("")}</datalist><datalist id="dlBen">${bens.map(c=>`<option value="${esc(c)}">`).join("")}</datalist>
+  <div class="close-form">
+   <label class="field">Fecha<input type="date" id="npD" value="${todayStr()}"></label>
+   <label class="field">Parvada (#P)<input type="text" id="npP" value="${lastP?"P"+lastP.num:""}"></label>
+   <label class="field">Categoría<input type="text" id="npC" list="dlCat"></label>
+   <label class="field">Forma de pago<select id="npM">${Object.entries(METODO).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select></label>
+   <label class="field">Beneficiario<input type="text" id="npB" list="dlBen"></label>
+   <label class="field">Banco<select id="npK">${(banks.length?banks:["Banpro C$","Ficohsa C$","Ficohsa $"]).map(b=>`<option>${esc(b)}</option>`).join("")}</select></label>
+   <label class="field">Subtotal<input type="number" step="0.01" id="npS"></label>
+   <label class="field">Retención 2%<input type="number" step="0.01" id="npR2"></label>
+   <label class="field">Retención 1%<input type="number" step="0.01" id="npR1"></label>
+   <label class="field">IVA<input type="number" step="0.01" id="npI"></label>
+   <label class="field">Tipo de cambio<input type="number" step="0.0001" id="npT" value="${lastTc}"></label>
+  </div>
+  <label class="field" style="margin-top:8px">Concepto<input type="text" id="npTx"></label>
+  <div class="row" style="justify-content:space-between;margin-top:8px"><span class="note" id="npCalc">El total y el monto en dólares se calculan solos.</span><button class="btn primary" id="npSave" ${S.readonly||!S.db?"disabled":""}>Guardar pago</button></div></div>`;
+}
+function bindPayForm(farm){
+  const b=$("#npSave");if(!b)return;
+  const calcP=()=>{const s=+$("#npS").value||0,r2=+$("#npR2").value||0,r1=+$("#npR1").value||0,iv=+$("#npI").value||0,tc=+$("#npT").value||0;const tot=s-r2-r1+iv;const k=$("#npK").value;const usdv=/\$$/.test(k)&&!/C\$$/.test(k)?tot:(tc?tot/tc:null);
+    $("#npCalc").textContent=s?`Total ${fx(tot,2)} · ${usd(usdv,2)} en dólares`:"El total y el monto en dólares se calculan solos.";return {tot,usdv}};
+  ["npS","npR2","npR1","npI","npT","npK"].forEach(id=>$("#"+id).addEventListener("input",calcP));
+  b.addEventListener("click",async()=>{
+    const d=$("#npD").value,s=+$("#npS").value;if(!d||!s||!$("#npB").value.trim()){toast("Escribe fecha, beneficiario y subtotal");return}
+    const {tot,usdv}=calcP();const m=d.slice(0,7);const id=farm+"-"+m;
+    const row={a:1,d,c:$("#npC").value.trim()||"Gastos varios",p:$("#npP").value.trim().toUpperCase(),m:$("#npM").value,b:$("#npB").value.trim(),t:$("#npTx").value.trim(),k:$("#npK").value,s,tot:+tot.toFixed(2),tc:+$("#npT").value||null,usd:ok(usdv)?+usdv.toFixed(2):null};
+    ["r2","r1","iva"].forEach((k,i)=>{const v=+$(["#npR2","#npR1","#npI"][i]).value;if(v)row[k]=v});
+    Object.keys(row).forEach(k=>{if(row[k]===null||row[k]==="")delete row[k]});
+    const cur=S.pay.get(id);const body=cur?stripId(cur):{farm,month:m,rows:[]};body.rows=[...(body.rows||[]),row].sort((a,b)=>a.d.localeCompare(b.d));
+    b.disabled=true;try{await S.db.doc("payments/"+id).set(JSON.parse(JSON.stringify(body)));toast("Pago guardado");S.pf=null}catch(e){toast("No se guardó: "+(e.message||e.code));b.disabled=false}
+  });
+}
+
+/* ---------- APÉNDICE ---------- */
+function renderApendice(){
+  const el=$("#v-apendice");const farm=S.farm;const full=lastFullCycle(farm);
+  if(!full){el.innerHTML=emptyState();return}
+  const A=cycleAgg(farm,full),B=cycleAgg(farm,full-1),F1=cycleAgg(farm,cyclesOf(farm)[0]);
+  const obs=observations(farm,A,B,F1);
+  const base={alive:A.alive/A.n,birds:A.birds/A.n,w:A.wFinal,fcr:A.fcr,cost:A.costLb,mort:A.mort,hab:A.habN?A.hab/A.habN:0};
+  const res=(o)=>{const p=pay(o.w,o.fcr);const lbs=o.alive*o.w;const inc=lbs*p.total;return {p,lbs,inc,profit:inc-lbs*base.cost}};
+  const B0=res(base);
+  const row=(lab,o,note="")=>{const r=res(o);const d=r.inc-B0.inc;return `<tr class="${Math.abs(d)<1?"sel":""}"><td>${lab}</td><td class="num">${usd(r.p.total,4)}</td><td class="num">${lbk(r.lbs)}</td><td class="num">${usd(r.inc)}</td><td class="num ${d>1?"up":d<-1?"dn":""}">${Math.abs(d)<1?"base":(d>0?"+":"")+usd(d)}</td><td class="num ${d>1?"up":d<-1?"dn":""}">${Math.abs(d)<1?"—":(d>0?"+":"")+usd(d*7)}</td><td class="src" style="text-align:left;white-space:normal">${note}</td></tr>`};
+  const th=`<thead><tr><th>Escenario</th><th>Precio $/lb</th><th>Libras</th><th>Liquidación</th><th>Diferencia por parvada</th><th>Diferencia por año (7)</th><th style="text-align:left">Qué cambia</th></tr></thead>`;
+  const fcrs=[0.06,0.04,0.02,0.01,0,-0.01,-0.02,-0.04,-0.06];
+  const ws=[-0.3,-0.2,-0.1,0,0.1,0.2,0.3];
+  const ms=[1,0.5,0,-0.5,-1,-1.5];
+  const mtxF=[0.04,0.02,0,-0.02,-0.04],mtxW=[-0.2,-0.1,0,0.1,0.2];
+  let html=`<div class="flock-head"><h2>Apéndice</h2><span class="muted">${esc(farmName(farm))} · observaciones y ejercicios de dinero</span></div>
+  <div class="card"><h3>Observaciones que muestran los números</h3><ol class="obs">${obs.map(o=>`<li><b>${o.t}</b> ${o.d}</li>`).join("")}</ol>
+  <p class="src">Se recalculan solas cada vez que agregas o corriges datos.</p></div>
+  <div class="card"><h3>Punto de partida de los ejercicios</h3><p class="note">Una parvada promedio de ${cycLabel(full)} (${cycYears(full)}), pagada con la tabla Cargill 2025. Cargill pone el alimento y el pollito: a ti te pagan por libra producida, y la conversión solo cambia el bono que recibes.</p>
+   <div class="sim-out">${kpi("Aves vivas a cosecha",fi(base.alive),"",`de ${fi(base.birds)} recibidas`)}${kpi("Peso a cosecha",fx(base.w,2),"lb","")}${kpi("Conversión",fx(base.fcr,3),"","")}${kpi("Precio tabla 2025",usd(B0.p.total,4),"/lb",`base ${usd(B0.p.base,4)} + bono por conversión ${usd(B0.p.bfcr,4)} + otros ${usd(B0.p.mejora+B0.p.inv,4)}`)}${kpi("Liquidación por parvada",usdk(B0.inc),"",`${lbk(B0.lbs)} lb`)}${kpi("Químicos Cargill por parvada",usd(base.hab),"",`ya incluidos en el costo · promedio de ${cycLabel(full)}`)}${kpi("Costo operativo",usd(base.cost,4),"/lb",`utilidad ${usdk(B0.profit)} por parvada`)}</div></div>
+  <div class="card"><h3>Ejercicio 1 · Mejorar la conversión alimenticia</h3><div class="scroll"><table>${th}<tbody>
+   ${fcrs.map(d=>row(d===0?`Conversión ${fx(base.fcr,3)} (hoy)`:`Conversión ${fx(base.fcr+d,3)} (${d>0?"+":""}${fx(d,2)})`,{...base,fcr:base.fcr+d},d===0?"":`Bono por conversión ${usd(pay(base.w,base.fcr+d).bfcr,4)}/lb`)).join("")}
+  </tbody></table></div><p class="note">Cada 0.01 de conversión cambia el bono en unos ${usd(Math.abs(pay(base.w,base.fcr-0.01).total-B0.p.total),4)} por libra: <b>${usd(Math.abs(res({...base,fcr:base.fcr-0.01}).inc-B0.inc))} por parvada</b>, ${usd(Math.abs(res({...base,fcr:base.fcr-0.01}).inc-B0.inc)*7)} al año. Cuidado con cruzar 1.60: arriba de ese valor el bono pasa a ser descuento.</p></div>
+  <div class="card"><h3>Ejercicio 2 · Aumentar el peso a cosecha</h3><div class="scroll"><table>${th}<tbody>
+   ${ws.map(d=>row(d===0?`${fx(base.w,2)} lb (hoy)`:`${fx(base.w+d,2)} lb (${d>0?"+":""}${fx(d,1)})`,{...base,w:base.w+d},d===0?"":`Pago base ${usd(pay(base.w+d,base.fcr).base,4)}/lb por rango de peso`)).join("")}
+  </tbody></table></div><p class="note">El peso paga dos veces: más libras por pollo y, al pasar de rango, un pago base más alto (${PAY.base.slice(1).map(b=>`${fx(b[0],2)}–${fx(b[1],2)} lb: ${usd(b[2],4)}`).join(" · ")}). Supone la misma conversión; en la práctica más días de engorde también gastan más energía y gas.</p></div>
+  <div class="card"><h3>Ejercicio 3 · Bajar la mortalidad</h3><div class="scroll"><table>${th}<tbody>
+   ${ms.map(d=>{const m=base.mort+d;const alive=base.alive-base.birds*d/100;return row(d===0?`${pct(base.mort)} (hoy)`:`${pct(m)} (${d>0?"+":""}${fx(d,1)} puntos)`,{...base,alive},d===0?"":`${fi(alive-base.alive)} pollos ${d<0?"más":"menos"} a cosecha`)}).join("")}
+  </tbody></table></div><p class="note">Cada punto de mortalidad son unos ${fi(base.birds/100)} pollos por parvada, que equivalen a ${lbk(base.birds/100*base.w)} lb.</p></div>
+  <div class="card"><h3>Ejercicio 4 · Conversión y peso juntos</h3><p class="note">Utilidad por parvada: liquidación menos el costo operativo de ${usd(base.cost,4)}/lb (el costo ya incluye unos ${usd(base.hab)} de químicos que descuenta Cargill). La celda marcada es hoy.</p>
+  <div class="scroll"><table><thead><tr><th>Conversión \\ Peso</th>${mtxW.map(w=>`<th>${fx(base.w+w,2)} lb</th>`).join("")}</tr></thead><tbody>
+  ${mtxF.map(f=>`<tr><td>${fx(base.fcr+f,3)}</td>${mtxW.map(w=>{const r=res({...base,fcr:base.fcr+f,w:base.w+w});const d=r.profit-B0.profit;return `<td class="num ${f===0&&w===0?"yr-now":d>1?"up":d<-1?"dn":""}">${usdk(r.profit)}<br><span class="src">${f===0&&w===0?"hoy":(d>0?"+":"")+usdk(d)}</span></td>`}).join("")}</tr>`).join("")}
+  </tbody></table></div></div>
+  <div class="card"><h3>Ejercicio 5 · Bajar el costo operativo</h3><div class="scroll"><table><thead><tr><th>Escenario</th><th>Costo $/lb</th><th>Ahorro por parvada</th><th>Ahorro por año (7)</th></tr></thead><tbody>
+  ${[0.001,0.002,0.003].map(x=>`<tr><td>Bajar ${usd(x,3)} por libra</td><td class="num">${usd(base.cost-x,4)}</td><td class="num up">${usd(B0.lbs*x)}</td><td class="num up">${usd(B0.lbs*x*7)}</td></tr>`).join("")}
+  ${[0.05,0.1].map(x=>`<tr><td>Bajar ${fx(x*100,0)}% el costo</td><td class="num">${usd(base.cost*(1-x),4)}</td><td class="num up">${usd(B0.lbs*base.cost*x)}</td><td class="num up">${usd(B0.lbs*base.cost*x*7)}</td></tr>`).join("")}
+  </tbody></table></div><p class="note">Para comparar: ahorrar ${usd(0.001,3)} por libra vale casi lo mismo que mejorar la conversión en ${fx(0.001/Math.max(1e-6,Math.abs(pay(base.w,base.fcr-0.01).total-B0.p.total))*0.01,3)}.</p></div>`;
+  html+=`<div class="card"><h3>Glosario para el equipo</h3><div class="glossary">
+   <div><b>Parvada</b>: un lote de pollos desde que llega el pollito (día 1) hasta la cosecha. Un ciclo o año Cargill tiene 7 parvadas.</div>
+   <div><b>Ganancia diaria</b>: libras que gana cada pollo por día. Semanal = lo que subió en la semana ÷ 7.</div>
+   <div><b>Conversión alimenticia</b>: libras de alimento que se necesitan para producir una libra de pollo. Entre más baja, mejor, y Cargill paga más bono.</div>
+   <div><b>Mortalidad acumulada</b>: porcentaje de pollos muertos desde el día 1 hasta esa semana.</div>
+   <div><b>Variación entre galeras</b>: qué tan parejo va el peso entre galeras. Menos de 5% es parejo; más de 8% hay galeras rezagadas.</div>
+   <div><b>IEP</b>: índice de eficiencia productiva. Junta viabilidad, peso, edad y conversión en un solo número; arriba de 400 es muy bueno.</div>
+   <div><b>Raleo</b>: pollos que Cargill saca antes de la cosecha final, con menor peso.</div>
+   <div><b>Pollos quedados</b>: pollos que no se llevaron en la cosecha.</div>
+   <div><b>Vaciado sanitario</b>: días que la granja queda vacía entre parvadas para limpieza y desinfección.</div>
+   <div><b>Habilitación</b>: preparación de la granja entre parvadas. Cargill descuenta de la liquidación los químicos que usa en ella.</div>
+   <div><b>Precio liquidado</b>: lo que Cargill paga por cada libra producida: pago base según el peso, más bonos por conversión, mejora e inversión.</div>
+   <div><b>Margen por libra</b>: precio liquidado menos el costo operativo por libra. Es lo que queda por cada libra.</div>
+   <div><b>Rentabilidad (ROI)</b>: utilidad del año dividida entre el ingreso total.</div>
+   <div><b>Puntos</b>: diferencia entre dos porcentajes. De 5.0% a 5.5% son 0.5 puntos.</div>
+  </div></div>`;
+  el.innerHTML=html;
+}
+function observations(farm,A,B,F1){
+  const o=[];const fullC=A.cyc;const cs=farmFlocks(farm).map(C_).filter(c=>c.closed);
+  if(F1&&F1.cyc!==A.cyc)o.push({t:"Producción creciendo.",d:`De ${cycLabel(F1.cyc)} a ${cycLabel(fullC)} las libras pasaron de ${lbk(F1.lbs)} a ${lbk(A.lbs)} (${diffTag(A.lbs,F1.lbs)}), el peso a cosecha de ${fx(F1.wFinal,2)} a ${fx(A.wFinal,2)} lb y la conversión de ${fx(F1.fcr,3)} a ${fx(A.fcr,3)}.`});
+  if(F1&&F1.cyc!==A.cyc)o.push({t:"El precio subió por bonos, no por el pago base.",d:`El precio liquidado pasó de ${usd(F1.liq,4)} a ${usd(A.liq,4)} por libra. El bono de conversión subió de ${usd(F1.bConv,4)} a ${usd(A.bConv,4)} y el de inversión de ${usd(F1.bInv,4)} a ${usd(A.bInv,4)}; el pago base casi no cambió (${usd(F1.pBase,4)} → ${usd(A.pBase,4)}).`});
+  if(B&&B.n){o.push({t:`${cycLabel(fullC)} produjo más pero ganó menos.`,d:`Libras ${diffTag(A.lbs,B.lbs)} y precio ${diffTag(A.liq,B.liq)} contra ${cycLabel(B.cyc)}, pero el costo por libra subió ${diffTag(A.costLb,B.costLb,false)} (${usd(B.costLb,4)} → ${usd(A.costLb,4)}). El margen bajó de ${usd(B.marginLb,4)} a ${usd(A.marginLb,4)} por libra${A.Y&&B.Y?` y la utilidad del año de ${usdk(B.Y.profit)} a ${usdk(A.Y.profit)}`:""}.`});
+    const cat=(ag)=>{const cl=ag.flocks.filter(c=>c.closed&&c.C.costs);const r={};cl.forEach(c=>Object.entries(c.C.costs).forEach(([k,v])=>{r[k]=(r[k]||0)+v/cl.length}));return r};
+    const ca=cat(A),cb=cat(B);const ch=Object.keys(ca).map(k=>({k,d:(ca[k]||0)-(cb[k]||0),a:ca[k],b:cb[k]})).sort((x,y)=>y.d-x.d);
+    if(ch.length)o.push({t:"Dónde subió el costo.",d:`Por parvada, lo que más aumentó fue ${ch.slice(0,3).map(x=>`${esc(x.k)} (${usd(x.b)} → ${usd(x.a)})`).join(", ")}. ${ch[ch.length-1].d<0?`Bajó ${esc(ch[ch.length-1].k)} (${usd(ch[ch.length-1].b)} → ${usd(ch[ch.length-1].a)}).`:""}`});}
+  const hab=cyclesOf(farm).map(y=>cycleAgg(farm,y)).filter(a=>ok(a.deduct));
+  if(hab.length)o.push({t:"Químicos de habilitación.",d:`Cargill descuenta en la liquidación los químicos que usa en la limpieza y preparación de la granja entre parvadas. En ${cycLabel(hab[hab.length-1].cyc)} fueron ${usd(hab[hab.length-1].deduct)} (${pct(hab[hab.length-1].deduct/hab[hab.length-1].income*100,1)} de la liquidación, ${usd(hab[hab.length-1].deduct/hab[hab.length-1].lbs,4)} por libra)${hab.length>1?`; en ${cycLabel(hab[0].cyc)} fueron ${usd(hab[0].deduct)}`:""}.`});
+  if(A.Y&&ok(A.Y.loan))o.push({t:"El préstamo se lleva gran parte de la utilidad.",d:`En ${cycLabel(fullC)} la cuota del préstamo fue ${usdk(A.Y.loan)}, que equivale a ${pct(A.Y.loan/(A.Y.incomeTotal-A.Y.opex)*100,0)} de lo que queda después del gasto operativo. Tras abonos a PM de ${usdk(A.Y.partnerPay)}, el flujo neto fue ${usdk(A.Y.netFlow)}.`});
+  const wk=hist(farm,null).wk;if(ok(wk[2].mortCum)&&ok(wk[6].mortCum))o.push({t:"La mortalidad se concentra al inicio.",d:`En promedio ${pct(wk[2].mortCum,1)} de mortalidad ocurre en las primeras 2 semanas, casi ${fx(wk[2].mortCum/wk[6].mortCum*100,0)}% de toda la parvada. Cuidar la recepción y la calefacción en los primeros 14 días es donde más pollos se salvan.`});
+  if(cs.length>4){const srt=cs.filter(c=>ok(c.mort)).sort((a,b)=>a.mort-b.mort);const b=srt[0],w=srt[srt.length-1];if(b&&w)o.push({t:"Mucha diferencia de mortalidad entre parvadas.",d:`La mejor fue la Parvada ${b.f.num} con ${pct(b.mort)} y la peor la Parvada ${w.f.num} con ${pct(w.mort)}. La diferencia equivale a unos ${fi((w.mort-b.mort)/100*(w.birds||0))} pollos.`});}
+  const G_=[];for(let g=0;g<G;g++){const rel=cs.map(c=>{const v=c.weeks[5].wg[g],a=c.weeks[5].w;return ok(v)&&ok(a)?(v-a)/a*100:null}).filter(ok);const mr=cs.map(c=>{const v=c.weeks[6].mg[g],a=c.weeks[6].mortCum;return ok(v)&&ok(a)?v-a:null}).filter(ok);G_.push({g,rel:mean(rel),mr:mean(mr)})}
+  const gs=G_.filter(x=>ok(x.rel)).sort((a,b)=>b.rel-a.rel);if(gs.length)o.push({t:"Galeras con diferencia constante.",d:`La G${gs[0].g+1} pesa en promedio ${fx(gs[0].rel,1)}% más que su parvada y la G${gs[gs.length-1].g+1} ${fx(Math.abs(gs[gs.length-1].rel),1)}% menos. ${(x=>x?`La G${x.g+1} tiene ${fx(x.mr,2)} puntos más de mortalidad que el promedio.`:"")(G_.filter(x=>ok(x.mr)).sort((a,b)=>b.mr-a.mr)[0])} Vale revisar equipos, ventilación y bebederos de esas galeras.`});
+  const lq=cs.map(c=>c.leftT).filter(ok);if(lq.length>8)o.push({t:"Menos pollos quedados.",d:`Las primeras parvadas dejaban en promedio ${fi(mean(lq.slice(0,7)))} pollos sin cosechar; las últimas 7, ${fi(mean(lq.slice(-7)))}.`});
+  const p1=pay(A.wFinal,A.fcr),p2=pay(A.wFinal,A.fcr-0.01),p3=pay(A.wFinal+0.1,A.fcr);
+  if(p1&&p2&&p3){const lb=A.alive/A.n*A.wFinal;o.push({t:"Qué mueve más el dinero.",d:`Con la tabla 2025, bajar 0.01 la conversión vale ${usd((p2.total-p1.total)*lb)} por parvada; subir 0.1 lb el peso vale ${usd((A.alive/A.n)*(A.wFinal+0.1)*p3.total-lb*p1.total)}; bajar un punto la mortalidad vale ${usd(A.birds/A.n/100*A.wFinal*p1.total)}. Ver los ejercicios abajo.`});}
+  return o;
+}
+
+
+/* ---------- FLUJO MENSUAL ---------- */
+const MESL=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const mLab=k=>{const [y,m]=k.split("-");return MES[+m-1]+" "+y.slice(2)};
+const mLong=k=>{const [y,m]=k.split("-");return MESL[+m-1]+" "+y};
+function cashData(farm){
+  const meta=S.cash.get(farm+"-meta");const rows=meta&&meta.rows?meta.rows:[];
+  const months=[...S.cash.values()].filter(d=>d.farm===farm&&d.month).sort((a,b)=>a.month.localeCompare(b.month));
+  const n=s=>XP.norm(s);const find=re=>{const r=rows.find(x=>re.test(n(x.label)));return r?r.key:null};
+  const K={inc:find(/^ingresos$/),incP:find(/^ingresos por parvadas/),exp:find(/^total egresos/),ab:find(/^total abono/),sd:find(/^saldo disponible/),bank:find(/^total a final/),
+    loan:(rows.find(x=>n(x.label)==="saldo"&&x.level===1)||{}).key,cuotas:rows.filter(x=>/^cuota|^gastos de apertura/.test(n(x.label))).map(x=>x.key)};
+  const val=(d,k)=>k&&d&&d.v&&typeof d.v[k]==="number"?d.v[k]:null;
+  const cuo=d=>sum(K.cuotas.map(k=>val(d,k)))||0;const pm=d=>val(d,K.ab)||0;const ab=d=>cuo(d)+pm(d);
+  const net=d=>(val(d,K.inc)||0)-(val(d,K.exp)||0)-ab(d);
+  const lastBank=ms=>[...ms].reverse().find(d=>(val(d,K.bank)||0)>0);
+  return {rows,months,K,val,ab,cuo,pm,net,lastBank};
+}
+function cashPeriods(months){
+  const out=[{id:"12",lab:"Últimos 12 meses"}];const ks=months.map(d=>d.month);if(!ks.length)return out;
+  const cy=new Set(ks.map(k=>{const [y,m]=k.split("-").map(Number);return m>=6?y:y-1}));
+  [...cy].sort((a,b)=>b-a).forEach(y=>out.push({id:"c"+y,lab:`Ciclo ${y}-${String(y+1).slice(2)} (jun–may)`}));
+  [...new Set(ks.map(k=>k.slice(0,4)))].sort().reverse().forEach(y=>out.push({id:"y"+y,lab:`Año ${y}`}));
+  out.push({id:"all",lab:"Todo el historial"});return out;
+}
+function inPeriod(k,id,last){
+  if(id==="all")return true;
+  if(id==="12"){const [y,m]=last.split("-").map(Number);const d=new Date(y,m-12,1);return k>=iso(d).slice(0,7)&&k<=last}
+  if(id[0]==="y")return k.startsWith(id.slice(1));
+  if(id[0]==="c"){const y=+id.slice(1);return k>=`${y}-06`&&k<=`${y+1}-05`}
+  return true;
+}
+function renderFlujo(){
+  const el=$("#v-flujo");const farm=S.farm;const C=cashData(farm);
+  if(!C.months.length){el.innerHTML=`<div class="empty"><h2>Aún no hay flujo mensual</h2><p>Importa tu archivo de Flujo en la pestaña <b>Importar Excel</b> para ver ingresos, egresos, préstamos y bancos mes a mes.</p><button class="btn primary" id="goImp">Ir a Importar Excel</button></div>`;$("#goImp").addEventListener("click",()=>setTab("importar"));return}
+  const last=C.months[C.months.length-1].month;const pers=cashPeriods(C.months);if(!S.cashPer||!pers.some(p=>p.id===S.cashPer))S.cashPer="12";
+  const ms=C.months.filter(d=>inPeriod(d.month,S.cashPer,last));
+  const inc=sum(ms.map(d=>C.val(d,C.K.inc))),exp=sum(ms.map(d=>C.val(d,C.K.exp))),cuo=sum(ms.map(C.cuo)),pmv=sum(ms.map(C.pm)),ab=(cuo||0)+(pmv||0);
+  const net=(inc||0)-(exp||0)-ab;const lastM=ms[ms.length-1];const bM=C.lastBank(ms);
+  const bank=bM?C.val(bM,C.K.bank):null;const loanM=[...ms].reverse().find(d=>ok(C.val(d,C.K.loan))&&C.val(d,C.K.loan)>0);
+  let html=`<div class="flock-head"><h2>Flujo mensual</h2><span class="muted">${esc(farmName(farm))} · hoja “FLUJO Mensual detallado” · dólares</span></div>
+  <div class="row"><label class="field">Periodo<select id="cfPer">${pers.map(p=>`<option value="${p.id}" ${p.id===S.cashPer?"selected":""}>${esc(p.lab)}</option>`).join("")}</select></label><span class="src">${ms.length} meses · ${ms.length?mLong(ms[0].month)+" a "+mLong(lastM.month):""}</span></div>
+  <div class="kpis">
+   ${kpi("Ingresos",usdk(inc),"",`parvadas ${usdk(sum(ms.map(d=>C.val(d,C.K.incP))))} + IVA y otros`)}
+   ${kpi("Egresos operativos",usdk(exp),"",inc?`${fx(exp/inc*100,0)}% de los ingresos`:"")}
+   ${kpi("Cuotas de préstamos",usdk(cuo),"",inc?`${fx(cuo/inc*100,0)}% de los ingresos`:"")}
+   ${kpi("Abonos a PM",usdk(pmv),"","fila “Total abono préstamos”")}
+   ${kpi("Flujo neto del periodo",usdk(net),"",net<0?'<span class="pill bad">Negativo</span>':'<span class="pill good">Positivo</span>')}
+   ${kpi("Efectivo en bancos",usdk(bank),"",bM?`al cierre de ${mLong(bM.month)}`:"")}
+   ${kpi("Saldo del préstamo de la granja",usdk(loanM?C.val(loanM,C.K.loan):null),"",loanM?`a ${mLong(loanM.month)}`:"")}
+  </div>
+  <div class="grid2 eq">
+   <div class="card"><h3>Ingresos y egresos por mes</h3><div class="chart" id="cfIE"></div><div class="legend"><span><i class="band" style="background:var(--s1)"></i>Ingresos</span><span><i style="background:var(--ink)"></i>Egresos + cuotas + abonos a PM</span></div></div>
+   <div class="card"><h3>Efectivo en bancos a fin de mes</h3><div class="chart" id="cfBank"></div><div class="legend"><span><i class="band" style="background:var(--s1)"></i>Total en bancos</span></div></div>
+  </div>
+  <div class="card"><div class="card-h"><h3>Detalle mes a mes</h3><span class="src">Los saldos (préstamo y bancos) muestran el último mes en la columna Total</span></div>
+  <div class="scroll"><table><thead><tr><th>Concepto</th>${ms.map(d=>`<th>${mLab(d.month)}</th>`).join("")}<th>Total</th></tr></thead><tbody>
+  ${C.rows.map(r=>{if(r.head)return `<tr><td class="sec" colspan="${ms.length+2}">${esc(r.label)}</td></tr>`;
+    const vs=ms.map(d=>C.val(d,r.key));const tot=r.bal?[...vs].reverse().find(v=>ok(v)&&v!==0)??null:sum(vs);
+    const st=(r.total||r.parent)?' style="font-weight:700"':"";
+    return `<tr${r.total?' class="total"':""}><td${st}>${r.level?'<span style="display:inline-block;width:16px"></span>':""}${esc(r.label)}</td>${vs.map(v=>`<td class="num ${ok(v)&&v<0?"dn":""}"${st}>${ok(v)&&v!==0?fx(v,0):"—"}</td>`).join("")}<td class="num"${st}>${ok(tot)&&tot!==0?fx(tot,0):"—"}</td></tr>`}).join("")}
+  <tr class="total"><td>Flujo neto (ingresos − egresos − cuotas − abonos a PM)</td>${ms.map(d=>{const x=C.net(d);return `<td class="num ${x<0?"dn":"up"}">${fx(x,0)}</td>`}).join("")}<td class="num ${net<0?"dn":"up"}">${fx(net,0)}</td></tr>
+  </tbody></table></div></div>`;
+  el.innerHTML=html;
+  barChart($("#cfIE"),ms.map(d=>({key:d.month,lab:mLab(d.month),v:C.val(d,C.K.inc)||0,v2:(C.val(d,C.K.exp)||0)+(C.ab(d)||0),d})),{fmt:usdk,aria:"Ingresos y egresos por mes",zero:true,
+    tip:it=>`<b>${mLong(it.key)}</b><br>Ingresos: ${usd(it.v)}<br>Egresos operativos: ${usd(C.val(it.d,C.K.exp))}<br>Cuotas de préstamos: ${usd(C.cuo(it.d))}<br>Abonos a PM: ${usd(C.pm(it.d))}<br>Neto: <b>${usd(it.v-it.v2)}</b>`});
+  barChart($("#cfBank"),ms.map(d=>({key:d.month,lab:mLab(d.month),v:C.val(d,C.K.bank)})),{fmt:usdk,aria:"Efectivo en bancos",zero:true,tip:it=>`<b>${mLong(it.key)}</b><br>En bancos: ${usd(it.v)}`});
+  $("#cfPer").addEventListener("change",e=>{S.cashPer=e.target.value;renderFlujo()});
+}
+function panelMoney(farm){
+  const C=cashData(farm);if(!C.months.length)return "";
+  const cur=todayStr().slice(0,7);const ms=C.months.filter(d=>d.month<cur);if(!ms.length)return "";const L=ms[ms.length-1];const prev=ms.slice(-13,-1);
+  const avg=f=>mean(prev.map(f));const inc=C.val(L,C.K.inc),exp=C.val(L,C.K.exp),ab=C.ab(L);const net=C.net(L);
+  const net12=sum(ms.slice(-12).map(C.net));const bM=C.lastBank(ms);
+  return `<div class="card-h"><h3>Dinero · ${mLong(L.month)}</h3><span class="src">comparado con el promedio de los 12 meses anteriores · <a href="#" id="goFlujo">ver flujo mensual</a></span></div>
+  <div class="grid4">
+   ${kpi("Ingresos del mes",usdk(inc),"",diffTag(inc,avg(d=>C.val(d,C.K.inc)),true))}
+   ${kpi("Egresos operativos",usdk(exp),"",diffTag(exp,avg(d=>C.val(d,C.K.exp)),false))}
+   ${kpi("Cuotas y abonos a PM",usdk(ab),"",`flujo del mes ${usdk(net)}`)}
+   ${kpi("Efectivo en bancos",usdk(bM?C.val(bM,C.K.bank):null),"",`flujo neto 12 meses ${usdk(net12)}`)}
+  </div>`;
+}
+
+/* ---------- IMPORTAR EXCEL ---------- */
+function eqv(a,b){
+  if(a===b)return true;const na=a===null||a===undefined||a==="",nb=b===null||b===undefined||b==="";if(na||nb)return na&&nb;
+  if(typeof a==="number"&&typeof b==="number")return Math.abs(a-b)<=0.011+1e-9*Math.abs(b);
+  if(Array.isArray(a)||Array.isArray(b)){if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length)return false;return a.every((x,i)=>eqv(x,b[i]))}
+  if(typeof a==="object"&&typeof b==="object"){const ks=new Set([...Object.keys(a),...Object.keys(b)]);for(const k of ks)if(!eqv(a[k],b[k]))return false;return true}
+  return false;
+}
+function flockBase(farm,n){const id=farm+"-"+String(n).padStart(2,"0");const E=S.flocks.get(id);
+  const d=E?stripId(norm(JSON.parse(JSON.stringify(E)))):stripId(norm({farm,num:n,cycle:cycOf(n,farm),notes:""}));return {id,E,d}}
+function planComparativo(farm,P){
+  const plan=[];
+  P.flocks.forEach(f=>{const {id,E,d}=flockBase(farm,f.num);const old=JSON.parse(JSON.stringify(d));
+    d.farm=farm;d.num=f.num;if(f.start)d.start=f.start;if(f.harvest)d.harvest=f.harvest;
+    ["placed","w","mc","fcrW","hAge","left"].forEach(k=>d[k]=f[k]);if(!ok(d.cycle))d.cycle=cycOf(f.num,farm);
+    const what=[];if(!E)what.push("nueva");else{
+      if(!eqv(old.placed,d.placed))what.push("aves recibidas");
+      for(let n=0;n<7;n++){if(!eqv(old.w[n],d.w[n]))what.push(n?`peso S${n}`:"peso de recepción");if(n&&!eqv(old.mc[n],d.mc[n]))what.push(`mortalidad S${n}`);if(n&&!eqv(old.fcrW[n],d.fcrW[n]))what.push(`conversión S${n}`)}
+      if(!eqv(old.hAge,d.hAge)||!eqv(old.left,d.left))what.push("cosecha");if(old.start!==d.start||old.harvest!==d.harvest)what.push("fechas")}
+    if(!E||what.length)plan.push({col:"flocks",id,body:d,grp:"Parvadas",lab:`Parvada ${f.num}`,what,isNew:!E})});
+  return plan;
+}
+function planFlujo(farm,P){
+  const plan=[];
+  /* liquidación de la hoja Graficos: año y parvada Cargill → número corrido de esta granja */
+  P={...P,close:JSON.parse(JSON.stringify(P.close))};(P.graf||[]).forEach(x=>{const n=cycStart(x.a,farm)-1+x.p;const o=P.close[n]=P.close[n]||{};if(ok(x.liq))o.liq=x.liq;if(ok(x.perBird))o.perBird=x.perBird});
+  Object.entries(P.close).forEach(([n,cl])=>{n=+n;const {id,E,d}=flockBase(farm,n);const old=JSON.parse(JSON.stringify(d.close||{}));
+    const nc=Object.assign({},old,cl);if(cl.costs)nc.costs=cl.costs;d.close=nc;
+    if(!E||!eqv(old,nc)){const what=[];if(!E)what.push("nueva (solo cierre)");else{const ks=Object.keys(nc).filter(k=>!eqv(old[k],nc[k]));
+      const L={birds:"aves",dead:"muertas",lbs:"libras",fcr:"conversión",price:"precio",liq:"liquidación",cost:"costo",costs:"rubros de costo",wHarvest:"peso cosecha",eef:"IEP"};what.push(...ks.map(k=>L[k]||k).slice(0,6))}
+      plan.push({col:"flocks",id,body:d,grp:"Cierre y costos por parvada",lab:`Parvada ${n}`,what,isNew:!E,merge:true})}});
+  Object.entries(P.years).forEach(([y,o])=>{const id=farm+"-"+y;const E=S.years.get(id);const body=Object.assign({},E||{},o,{farm});
+    if(!E||!eqv(E,body))plan.push({col:"years",id,body,grp:"Resultado anual",lab:`${cycLabel(+y)} (${cycYears(+y)})`,what:[E?"actualizado":"nuevo"],isNew:!E})});
+  Object.entries(P.payments).forEach(([m,rows])=>{const id=farm+"-"+m;const E=S.pay.get(id);
+    const keepApp=(E&&E.rows?E.rows:[]).filter(r=>r.a&&!rows.some(x=>x.d===r.d&&x.b===r.b&&eqv(x.tot,r.tot)));
+    const body={farm,month:m,rows:[...rows,...keepApp].sort((a,b)=>a.d.localeCompare(b.d))};
+    if(!E||!eqv(E.rows,body.rows)){const dn=body.rows.length-(E&&E.rows?E.rows.length:0);
+      plan.push({col:"payments",id,body,grp:"Detalle de pagos",lab:mLong(m),what:[!E?`${rows.length} pagos`:dn>0?`+${dn} pagos`:dn<0?`${dn} pagos`:"pagos corregidos"],isNew:!E})}});
+  if(P.cashRows&&P.cashRows.length){const id=farm+"-meta";const E=S.cash.get(id);const body={farm,rows:P.cashRows};if(!E||!eqv(E.rows,body.rows))plan.push({col:"cashflow",id,body,grp:"Flujo mensual",lab:"Estructura del flujo",what:["conceptos"],isNew:!E})}
+  Object.entries(P.cash).forEach(([m,v])=>{const id=farm+"-"+m;const E=S.cash.get(id);const body={farm,month:m,v};
+    if(!E||!eqv(E.v,v))plan.push({col:"cashflow",id,body,grp:"Flujo mensual",lab:mLong(m),what:[E?"cambios":"nuevo"],isNew:!E})});
+  return plan;
+}
+function renderImportar(){
+  const el=$("#v-importar");const I=S.imp||(S.imp={});
+  const zone=(k,t,d)=>`<label class="card drop" for="f-${k}" id="z-${k}"><h3>${t}</h3><p class="note">${d}</p>
+    <span class="btn primary" style="align-self:flex-start">Elegir archivo</span><input type="file" id="f-${k}" accept=".xlsx,.xlsm" hidden>
+    <span class="src" id="s-${k}">${I[k]?`Leído: <b>${esc(I[k].name)}</b>`:"Arrastra el archivo aquí o elígelo"}</span></label>`;
+  let html=`<div class="flock-head"><h2>Importar Excel</h2><span class="muted">Actualiza el panel desde tus archivos</span></div>
+  <div class="row"><label class="field">Granja<select id="impFarm">${FARMS.map(x=>`<option value="${x.id}" ${x.id===(I.farm||S.farm)?"selected":""}>${esc(x.name)}</option>`).join("")}</select></label>
+   <p class="note" style="margin:0">Se actualizan las parvadas y los meses que traiga el archivo y se agregan los nuevos. No se borra nada. Antes de guardar ves la lista de cambios.</p></div>
+  <div class="grid2 eq">
+   ${zone("comp","1 · Comparativo (producción)","Archivo tipo “Comparativo1”: hoja <b>Pesos</b> con aves recibidas, pesos semanales, mortalidad acumulada, edad de cosecha y pollos quedados por galera.")}
+   ${zone("flujo","2 · Flujo (dinero)","Archivo tipo “FLUJO ASI” o “Flujo PIO PIO”: cierre de cada parvada, precios y bonos, <b>Costo x PV</b>, <b>Detalle de pago</b>, <b>Flujo Mensual detallado</b> y <b>Comparativo anual</b> o <b>Analisis</b>.")}
+  </div><div id="impOut"></div>`;
+  el.innerHTML=html;
+  const farmSel=$("#impFarm");farmSel.addEventListener("change",()=>{I.farm=farmSel.value;rebuildPlan();showPlan()});
+  ["comp","flujo"].forEach(k=>{const inp=$("#f-"+k),z=$("#z-"+k);
+    inp.addEventListener("change",()=>{if(inp.files[0])readFile(k,inp.files[0])});
+    z.addEventListener("dragover",e=>{e.preventDefault();z.classList.add("over")});z.addEventListener("dragleave",()=>z.classList.remove("over"));
+    z.addEventListener("drop",e=>{e.preventDefault();z.classList.remove("over");const f=e.dataTransfer.files[0];if(f)readFile(k,f)})});
+  showPlan();
+}
+async function readFile(slot,file){
+  const I=S.imp;const st=$("#s-"+slot);st.textContent="Leyendo…";
+  try{const wb=await XL.open(await file.arrayBuffer());const k=XP.kind(wb);
+    if(!k)throw new Error("No reconozco este archivo: no tiene la hoja “Pesos” ni “FLUJO Mensual detallado”.");
+    const target=k==="comparativo"?"comp":"flujo";
+    const parsed=k==="comparativo"?await XP.parseComparativo(wb):await XP.parseFlujo(wb);
+    I[target]={name:file.name,parsed};if(target!==slot)toast(`Lo cargué como ${target==="comp"?"Comparativo":"Flujo"}, que es lo que contiene.`);
+    ["comp","flujo"].forEach(s=>{const e=$("#s-"+s);if(e&&I[s])e.innerHTML=`Leído: <b>${esc(I[s].name)}</b>`});
+    rebuildPlan();showPlan();
+  }catch(e){st.innerHTML=`<span class="dn">${esc(e.message||String(e))}</span>`}
+}
+function rebuildPlan(){const I=S.imp;const farm=I.farm||S.farm;I.plan=[...(I.comp?planComparativo(farm,I.comp.parsed):[]),...(I.flujo?planFlujo(farm,I.flujo.parsed):[])];
+  // una parvada puede venir de los dos archivos: combinar en un solo documento
+  const m=new Map();I.plan.forEach(p=>{const key=p.col+"/"+p.id;const o=m.get(key);if(!o){m.set(key,p);return}
+    if(p.merge){o.body.close=p.body.close}else{p.body.close=o.body.close;o.body=p.body}o.what=[...o.what,...p.what];o.grp=o.grp==="Parvadas"?o.grp:p.grp});
+  I.plan=[...m.values()]}
+function showPlan(){
+  const out=$("#impOut");if(!out)return;const I=S.imp;if(!I.comp&&!I.flujo){out.innerHTML="";return}
+  const warns=[...(I.comp?I.comp.parsed.warn:[]),...(I.flujo?I.flujo.parsed.warn:[])];
+  const plan=I.plan||[];const groups={};plan.forEach(p=>{(groups[p.grp]=groups[p.grp]||[]).push(p)});
+  let h=`${warns.length?`<div class="banner warn">${warns.map(esc).join("<br>")}</div>`:""}
+  <div class="card"><div class="card-h"><h3>Cambios encontrados</h3><span class="src">${plan.length?`${plan.filter(p=>p.isNew).length} nuevos · ${plan.filter(p=>!p.isNew).length} con cambios`:"Todo está igual que en el panel"}</span></div>
+  ${Object.entries(groups).map(([g,ps])=>`<details ${ps.length<=12?"open":""}><summary><b>${esc(g)}</b> · ${ps.length}</summary><div class="hbar" style="grid-template-columns:minmax(120px,200px) 1fr;margin:8px 0">${ps.map(p=>`<span>${esc(p.lab)}${p.isNew?' <span class="pill good">nuevo</span>':""}</span><span class="src" style="font-size:12.5px">${esc(p.what.join(", "))}</span>`).join("")}</div></details>`).join("")}
+  <div class="row" style="justify-content:space-between;margin-top:6px"><span class="note" id="impMsg"></span><div class="row"><button class="btn" id="impCancel">Cancelar</button><button class="btn primary" id="impGo" ${!plan.length||S.readonly||!S.db?"disabled":""}>Guardar ${plan.length} cambios</button></div></div></div>`;
+  out.innerHTML=h;
+  $("#impCancel").addEventListener("click",()=>{S.imp={};renderImportar()});
+  $("#impGo").addEventListener("click",runImport);
+}
+async function runImport(){
+  const I=S.imp;const plan=I.plan||[];const btn=$("#impGo"),msg=$("#impMsg");btn.disabled=true;$("#impCancel").disabled=true;
+  let done=0,fail=[];const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  const one=async p=>{for(let t=0;t<4;t++){try{await S.db.doc(p.col+"/"+p.id).set(JSON.parse(JSON.stringify(p.body)));return true}catch(e){const c=e&&e.code;if(c==="resource_exhausted"||c==="unavailable"){await sleep(800*(t+1)+Math.random()*400);continue}fail.push(`${p.lab}: ${e.message||c}`);return false}}fail.push(`${p.lab}: el servidor está ocupado`);return false};
+  const queue=plan.slice();const worker=async()=>{while(queue.length){const p=queue.shift();await one(p);done++;msg.textContent=`Guardando… ${done} de ${plan.length}`}};
+  await Promise.all([worker(),worker(),worker()]);
+  if(fail.length){msg.innerHTML=`<span class="dn">Se guardaron ${plan.length-fail.length} de ${plan.length}. No se pudo: ${esc(fail.slice(0,3).join("; "))}${fail.length>3?"…":""}. Vuelve a presionar Guardar para reintentar.</span>`;btn.disabled=false;btn.textContent="Reintentar";$("#impCancel").disabled=false;I.plan=plan.filter(p=>fail.some(f=>f.startsWith(p.lab+":")));return}
+  toast(`Listo: ${plan.length} cambios guardados`);S.farm=I.farm||S.farm;S.imp={};setTimeout(()=>setTab("panel"),600);
+}
+
+/* ---------- CAPTURA ---------- */
+const MODES=[{id:0,lab:"Recepción"},{id:1,lab:"S1"},{id:2,lab:"S2"},{id:3,lab:"S3"},{id:4,lab:"S4"},{id:5,lab:"S5"},{id:6,lab:"S6"},{id:"h",lab:"Cosecha"},{id:"c",lab:"Cierre y liquidación"}];
+const CLOSE_FIELDS=[
+  ["birds","Aves recibidas",1],["dead","Aves muertas",1],["alive","Aves vivas",1],["days","Días de engorde",0.01],["sanitary","Días de vaciado sanitario",1],
+  ["wThin","Peso de raleo (lb)",0.001],["thinPct","% de raleo (0 a 1)",0.0001],["wHarvest","Peso a cosecha (lb)",0.001],["lbs","Libras producidas",1],
+  ["fcr","Conversión alimenticia",0.0001],["feedQQ","Alimento consumido (qq)",0.01],["eef","IEP (índice de eficiencia)",0.01],
+  ["pBase","Pago base ($/lb)",0.0001],["bConv","Bono conversión ($/lb)",0.0001],["bMejora","Bono mejora ($/lb)",0.0001],["bInv","Bono inversión ($/lb)",0.0001],
+  ["price","Precio según tabla ($/lb)",0.0001],["liq","Precio liquidado ($/lb)",0.00001],["hab","Químicos Cargill descontados ($)",0.01],["cost","Costo operativo total ($)",0.01]
+];
+function colsFor(mode){
+  if(mode===0)return [{k:"placed",lab:"Aves recibidas",step:"1"},{k:"w0",lab:"Peso recepción (lb)",step:"0.001"}];
+  if(mode==="h")return [{k:"hAge",lab:"Edad cosecha (días)",step:"0.01"},{k:"hWt",lab:"Peso cosecha (lb)",step:"0.01"},{k:"left",lab:"Pollos quedados",step:"1"}];
+  return [{k:"w",lab:"Peso prom (lb)",step:"0.001"},{k:"mc",lab:"Mortalidad acum. (%)",step:"0.01"},{k:"fcrW",lab:"Conversión",step:"0.001"},{k:"f",lab:"Alimento (qq)",step:"0.1"}];
+}
+function getCell(f,mode,k,g){if(["placed","hAge","hWt","left"].includes(k))return f[k][g];if(k==="w0")return f.w[0][g];return f[k][mode][g]}
+function setCell(f,mode,k,g,v){if(["placed","hAge","hWt","left"].includes(k)){f[k][g]=v;return}if(k==="w0"){f.w[0][g]=v;return}f[k][mode][g]=v}
+function stripId(x){const o=Object.assign({},x);delete o._id;return o}
+function renderCaptura(){
+  const el=$("#v-captura");const f=S.flocks.get(S.sel);
+  if(!f){el.innerHTML=`<div class="card">${newFlockForm()}</div>`;bindNew();return}
+  if(!S.draft||S.draft._id!==f._id)S.draft=norm(JSON.parse(JSON.stringify(f)));
+  const d=S.draft;const mode=S.capMode;const c=C_(f);
+  let html=`<div class="flock-head"><h2>${flockName(f)}</h2><span class="muted">${esc(farmName(f.farm))}</span>${statusPill(c)}</div>`;
+  if(S.readonly)html+=`<div class="banner warn">Estás en modo lectura: los cambios no se pueden guardar desde esta vista.</div>`;
+  html+=`<div class="card"><div class="row">
+    <label class="field">Fecha de inicio<input type="date" id="fStart" value="${esc(d.start||"")}"></label>
+    <label class="field">Fecha de cosecha<input type="date" id="fHarv" value="${esc(d.harvest||"")}"></label>
+    <label class="field">Ciclo (año Cargill)<input type="number" id="fCyc" min="1" step="1" value="${ok(d.cycle)?d.cycle:""}" style="width:90px"></label>
+    <label class="field" style="flex:1;min-width:200px">Notas<input type="text" id="fNotes" value="${esc(d.notes||"")}" placeholder="Lote de incubadora, clima, vacunas…"></label>
+  </div></div>
+  <div class="card"><div class="card-h"><h3>¿Qué vas a registrar?</h3><div class="chips">${MODES.map(m=>`<button class="chip" data-mode="${m.id}" aria-pressed="${mode===m.id}">${m.lab}</button>`).join("")}</div></div>`;
+  if(mode==="c"){
+    html+=`<p class="note">Datos del cierre que entrega Cargill. Si dejas algo vacío, el sistema lo calcula con los datos semanales cuando puede.</p>
+    <div class="close-form">${CLOSE_FIELDS.map(([k,l,st])=>`<label class="field">${l}<input type="number" step="${st}" id="cl-${k}" data-ck="${k}" value="${ok(d.close[k])?d.close[k]:""}"></label>`).join("")}</div>
+    <div class="row"><button class="btn" id="fillTab">Calcular precio con tabla 2025</button><span class="src" id="tabMsg"></span></div>`;
+  } else {
+    const cols=colsFor(mode);
+    html+=`<p class="note">${mode===0?"Día 1: aves recibidas y peso promedio de recepción por galera.":mode==="h"?"Al cosechar: edad promedio de cosecha, peso de cosecha si lo tienes, y pollos que quedaron sin cosechar.":`Semana ${mode} (día ${mode*7}): peso promedio del muestreo, mortalidad acumulada en % desde el día 1, conversión acumulada (como en tu Excel) y, si lo tienes, alimento de la semana en quintales.`}</p>
+    <div class="scroll cap-grid"><table><thead><tr><th>Galera</th>${cols.map(cl=>`<th>${cl.lab}</th>`).join("")}${mode!==0&&mode!=="h"?"<th>Muertes est.</th>":""}</tr></thead><tbody>
+    ${Array.from({length:G},(_,g)=>`<tr><td>G${g+1}</td>${cols.map(cl=>{const v=getCell(d,mode,cl.k,g);return `<td><input type="number" inputmode="decimal" step="${cl.step}" min="0" id="c-${cl.k}-${g}" data-k="${cl.k}" data-g="${g}" value="${ok(v)?v:""}" aria-label="${cl.lab} G${g+1}"></td>`}).join("")}${mode!==0&&mode!=="h"?`<td class="num" id="de-${g}"></td>`:""}</tr>`).join("")}
+    <tr class="total"><td>Total / prom</td>${cols.map(cl=>`<td class="num" id="t-${cl.k}"></td>`).join("")}${mode!==0&&mode!=="h"?`<td class="num" id="t-de"></td>`:""}</tr></tbody></table></div>
+    <p class="src">Puedes pegar una columna copiada de Excel en la primera casilla.</p>`;
+  }
+  html+=`<div class="row" style="justify-content:space-between"><span class="muted" id="dirty"></span><div class="row"><button class="btn" id="revert">Descartar cambios</button><button class="btn primary" id="save" ${S.readonly||!S.db?"disabled":""}>Guardar</button></div></div></div>
+  <div class="card">${newFlockForm()}</div>
+  <div class="card"><div class="card-h"><h3>Eliminar parvada</h3>${S.confirmDel?`<div class="row"><span>¿Eliminar ${flockName(f)} y todos sus datos?</span><button class="btn" id="delNo">Cancelar</button><button class="btn danger" id="delYes">Sí, eliminar</button></div>`:`<button class="btn danger" id="delAsk" ${S.readonly||!S.db?"disabled":""}>Eliminar ${flockName(f)}</button>`}</div></div>`;
+  el.innerHTML=html;
+  const dirty=()=>{$("#dirty").textContent=JSON.stringify(stripId(d))!==JSON.stringify(stripId(norm(f)))?"Hay cambios sin guardar":""};
+  if(mode==="c"){
+    el.querySelectorAll("[data-ck]").forEach(inp=>inp.addEventListener("input",()=>{const v=inp.value===""?null:Number(inp.value);if(ok(v))d.close[inp.dataset.ck]=v;else delete d.close[inp.dataset.ck];if(inp.dataset.ck==="hab")delete d.close.habEst;dirty()}));
+    $("#fillTab").addEventListener("click",()=>{const cc=calc(d);const p=pay(cc.wFinal,cc.fcr);if(!p){$("#tabMsg").textContent="Falta peso a cosecha y FCR.";return}
+      Object.assign(d.close,{pBase:p.base,bConv:p.bfcr,bMejora:p.mejora,bInv:p.inv,price:+p.total.toFixed(5)});
+      ["pBase","bConv","bMejora","bInv","price"].forEach(k=>{$("#cl-"+k).value=d.close[k]});$("#tabMsg").textContent=`Tabla 2025: peso ${fx(cc.wFinal,2)} lb, conversión ${fx(p.fcrKey,2)} → ${usd(p.total,4)}/lb`;dirty()});
+  } else {
+    const cols=colsFor(mode);
+    const totals=()=>{cols.forEach(cl=>{const a=Array.from({length:G},(_,g)=>getCell(d,mode,cl.k,g));const isSum=["placed","f","left"].includes(cl.k);
+      const v=cl.k==="mc"?wMort(a,d.placed):isSum?sum(a):mean(a);$("#t-"+cl.k).textContent=cl.k==="mc"?pct(v):isSum?(cl.k==="f"?fx(v,1):fi(v)):fx(v,cl.k==="hAge"?2:3)});
+      if(mode!==0&&mode!=="h"){let t=0,any=false;for(let g=0;g<G;g++){const m=d.mc[mode][g],p=d.placed[g];const x=ok(m)&&ok(p)?m/100*p:null;$("#de-"+g).textContent=fi(x);if(ok(x)){t+=x;any=true}}$("#t-de").textContent=any?fi(t):"—"}
+      dirty()};
+    totals();
+    el.querySelectorAll("input[data-k]").forEach(inp=>{inp.addEventListener("input",()=>{const v=inp.value===""?null:Number(inp.value);setCell(d,mode,inp.dataset.k,+inp.dataset.g,ok(v)?v:null);totals()});
+      inp.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();const nx=document.getElementById(`c-${inp.dataset.k}-${+inp.dataset.g+1}`);if(nx)nx.focus()}});
+      inp.addEventListener("paste",e=>{const t=(e.clipboardData||window.clipboardData).getData("text");if(!/[\n\t]/.test(t))return;e.preventDefault();
+        const rows=t.trim().split(/\r?\n/).map(r=>r.split("\t"));const g0=+inp.dataset.g;const ci=cols.findIndex(cl=>cl.k===inp.dataset.k);
+        rows.forEach((r,ri)=>r.forEach((cell,cj)=>{const g=g0+ri,cl=cols[ci+cj];if(g<G&&cl){const v=Number(String(cell).replace("%","").replace(",","."));const bad=cell.trim()===""||isNaN(v);setCell(d,mode,cl.k,g,bad?null:v);const x=document.getElementById(`c-${cl.k}-${g}`);if(x)x.value=bad?"":v}}));totals()})});
+  }
+  $("#fStart").addEventListener("change",e=>{d.start=e.target.value;dirty()});
+  $("#fHarv").addEventListener("change",e=>{d.harvest=e.target.value;dirty()});
+  $("#fCyc").addEventListener("input",e=>{const v=parseInt(e.target.value,10);d.cycle=v>0?v:null;dirty()});
+  $("#fNotes").addEventListener("input",e=>{d.notes=e.target.value;dirty()});
+  el.querySelectorAll("[data-mode]").forEach(b=>b.addEventListener("click",()=>{const m=b.dataset.mode;S.capMode=(m==="h"||m==="c")?m:+m;renderCaptura()}));
+  $("#revert").addEventListener("click",()=>{S.draft=null;renderCaptura();toast("Cambios descartados")});
+  $("#save").addEventListener("click",saveDraft);
+  const da=$("#delAsk");if(da)da.addEventListener("click",()=>{S.confirmDel=true;renderCaptura()});
+  const dn=$("#delNo");if(dn)dn.addEventListener("click",()=>{S.confirmDel=false;renderCaptura()});
+  const dy=$("#delYes");if(dy)dy.addEventListener("click",async()=>{try{await S.db.doc("flocks/"+f._id).delete();S.confirmDel=false;S.sel=null;S.draft=null;toast("Parvada eliminada")}catch(e){toast("No se pudo eliminar: "+(e.message||e.code))}});
+  bindNew();
+}
+async function saveDraft(){
+  const d=S.draft;if(!d||!S.db)return;const btn=$("#save");btn.disabled=true;btn.textContent="Guardando…";
+  const body=stripId(d);if(!Object.keys(body.close||{}).length)delete body.close;
+  try{await S.db.doc("flocks/"+d._id).set(JSON.parse(JSON.stringify(body)));toast("Guardado");S.draft=null}
+  catch(e){if(e&&e.code==="invalid_argument"){S.readonly=true;toast("No tienes permiso para guardar en esta vista")}else toast("No se guardó: "+(e.message||e.code||"error"));btn.disabled=false;btn.textContent="Reintentar"}
+}
+function nextFor(farm){const ff=farmFlocks(farm);const lastF=ff[ff.length-1];const num=(lastF?lastF.num:0)+1;let cyc=lastF&&ok(lastF.cycle)?lastF.cycle:1;if(lastF&&ff.filter(x=>x.cycle===cyc).length>=7)cyc++;return {num,cyc}}
+function newFlockForm(){
+  const nx=nextFor(S.farm);const t=todayStr();const hs=iso(new Date(pd(t).getTime()+40*864e5));
+  return `<div class="card-h"><h3>Nueva parvada</h3></div><div class="row">
+   <label class="field">Granja<select id="nFarm">${FARMS.map(x=>`<option value="${x.id}" ${x.id===S.farm?"selected":""}>${esc(x.name)}</option>`).join("")}</select></label>
+   <label class="field">Número<input type="number" id="nNum" min="1" step="1" value="${nx.num}" style="width:90px"></label>
+   <label class="field">Ciclo<input type="number" id="nCyc" min="1" step="1" value="${nx.cyc}" style="width:80px"></label>
+   <label class="field">Fecha de recepción<input type="date" id="nStart" value="${t}"></label>
+   <label class="field">Cosecha estimada<input type="date" id="nHarv" value="${hs}"></label>
+   <button class="btn primary" id="nCreate" ${S.readonly||!S.db?"disabled":""}>Crear parvada</button></div>
+   <p class="note" id="nMsg">Después de crearla, registra en “Recepción” las aves recibidas y el peso por galera.</p>`;
+}
+function bindNew(){
+  const b=$("#nCreate");if(!b)return;
+  $("#nFarm").addEventListener("change",e=>{const nx=nextFor(e.target.value);$("#nNum").value=nx.num;$("#nCyc").value=nx.cyc});
+  b.addEventListener("click",async()=>{
+    const farm=$("#nFarm").value,num=parseInt($("#nNum").value,10),cycle=parseInt($("#nCyc").value,10)||null,start=$("#nStart").value,harvest=$("#nHarv").value;
+    const id=farm+"-"+String(num).padStart(2,"0");
+    if(!num||num<1){$("#nMsg").textContent="Escribe un número de parvada válido.";return}
+    if(S.flocks.has(id)){$("#nMsg").textContent=`La Parvada ${num} ya existe en ${farmName(farm)}. Usa otro número.`;return}
+    const doc=stripId(norm({farm,num,cycle,start,harvest,notes:""}));delete doc.close;
+    b.disabled=true;
+    try{await S.db.doc("flocks/"+id).set(JSON.parse(JSON.stringify(doc)));S.farm=farm;S.sel=id;S.capMode=0;S.draft=null;toast(`Parvada ${num} creada`)}
+    catch(e){$("#nMsg").textContent="No se pudo crear: "+(e.message||e.code);b.disabled=false}
+  });
+}
+
+/* ---------- navegación ---------- */
+function fillPickers(){
+  $("#farmSel").innerHTML=FARMS.map(x=>`<option value="${x.id}" ${x.id===S.farm?"selected":""}>${esc(x.name)}</option>`).join("");
+  const ff=farmFlocks(S.farm);
+  if(!S.sel||!S.flocks.has(S.sel)||S.flocks.get(S.sel).farm!==S.farm)S.sel=ff.length?ff[ff.length-1]._id:null;
+  const sl=$("#flockSel");sl.innerHTML=ff.length?ff.slice().reverse().map(f=>`<option value="${f._id}" ${f._id===S.sel?"selected":""}>${flockName(f)} · ${fdShort(f.start)}</option>`).join(""):`<option>Sin parvadas</option>`;
+  sl.disabled=!ff.length;
+}
+const VIEWS={panel:renderPanel,anual:renderAnual,flujo:renderFlujo,importar:renderImportar,reporte:renderReporte,semanal:renderSemanal,comparativo:renderComparativo,costos:renderCostos,pagos:renderPagos,apendice:renderApendice,captura:renderCaptura};
+function render(){
+  fillPickers();
+  if(!VIEWS[S.tab])S.tab="panel";
+  document.querySelectorAll(".tab").forEach(t=>t.setAttribute("aria-selected",t.dataset.tab===S.tab));
+  Object.keys(VIEWS).forEach(v=>$("#v-"+v).hidden=v!==S.tab);
+  VIEWS[S.tab]();
+  const g=$("#goCap");if(g)g.addEventListener("click",()=>setTab("captura"));
+}
+function setTab(t){S.tab=t;try{localStorage.setItem("cg.tab",t)}catch(e){}render();window.scrollTo({top:0})}
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>setTab(t.dataset.tab)));
+$("#farmSel").addEventListener("change",e=>{S.farm=e.target.value;S.sel=null;S.gWeek=null;S.draft=null;S.sim=null;S.costCyc=null;try{localStorage.setItem("cg.farm",S.farm)}catch(_){}render()});
+$("#flockSel").addEventListener("change",e=>{S.sel=e.target.value;S.gWeek=null;S.draft=null;S.confirmDel=false;render()});
+
+/* ---------- datos ---------- */
+render();
+(async()=>{
+  const c=window.claude;
+  if(!c||!c.use){S.loaded=true;$("#syncState").textContent="Sin conexión a los datos";render();return}
+  c.use("downloads").then(d=>{S.dl=d;if(S.tab==="reporte")render()}).catch(()=>{});
+  c.use("user").then(async u=>{if(!u)return;try{const w=await u.can("data.write");if(w===false){S.readonly=true;render()}}catch(e){}}).catch(()=>{});
+  const db=await c.use("db");S.db=db;
+  if(!db){S.loaded=true;$("#syncState").textContent="Sin conexión a los datos";render();return}
+  let gotF=false,gotY=false;
+  const rerender=()=>{if(!gotF)return;S.loaded=true;$("#syncState").textContent=`${S.flocks.size} parvadas · sincronizado`;
+    if(S.tab==="captura"&&S.draft&&document.activeElement&&document.activeElement.closest&&document.activeElement.closest("#v-captura")){fillPickers();return}
+    render()};
+  db.collection("flocks").onSnapshot(snap=>{const m=new Map();snap.docs.forEach(d=>{if(d.exists){const o=norm(d.data());o._id=d.id;m.set(d.id,o)}});S.flocks=m;gotF=true;rerender()},
+    err=>{$("#syncState").textContent="Error de conexión: "+(err.message||err.code)});
+  db.collection("payments").onSnapshot(snap=>{const m=new Map();snap.docs.forEach(d=>{if(d.exists){const o=Object.assign({},d.data());o._id=d.id;m.set(d.id,o)}});S.pay=m;if(gotF&&(S.tab==="pagos"||S.tab==="costos"))rerender()},()=>{});
+  db.collection("cashflow").onSnapshot(snap=>{const m=new Map();snap.docs.forEach(d=>{if(d.exists){const o=Object.assign({},d.data());o._id=d.id;m.set(d.id,o)}});S.cash=m;if(gotF&&(S.tab==="flujo"||S.tab==="panel"))rerender()},()=>{});
+  db.collection("years").onSnapshot(snap=>{const m=new Map();snap.docs.forEach(d=>{if(d.exists)m.set(d.id,d.data())});S.years=m;gotY=true;rerender()},()=>{});
+})();
+})();
+</script>
+</body>
+</html>
