@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Control de Galeras</title>
+<link rel="icon" href="/icono.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/estilo-base.css">
+<style>
+.center{min-height:100vh;display:grid;place-items:center;padding:16px}
+.login{width:100%;max-width:380px}
+.login form{display:flex;flex-direction:column;gap:12px}
+</style>
+</head>
+<body>
+<div class="center">
+  <div class="card login">
+    <div class="brand">
+      <div class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-ink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M9 20v-5h6v5"/></svg></div>
+      <div><h1>Control de Galeras</h1><div class="muted" style="font-size:12.5px">Ingresa con tu usuario</div></div>
+    </div>
+    <form id="f">
+      <label class="field">Usuario<input id="u" name="username" autocomplete="username" required autofocus></label>
+      <label class="field">Contraseña<input id="p" name="password" type="password" autocomplete="current-password" required></label>
+      <div class="msg bad" id="err" hidden></div>
+      <button class="btn primary" type="submit" id="go" style="justify-content:center">Entrar</button>
+    </form>
+    <p class="note">¿Olvidaste tu contraseña? Pídele al administrador que te asigne una nueva.</p>
+  </div>
+</div>
+<script>
+document.getElementById("f").addEventListener("submit", async e => {
+  e.preventDefault();
+  const err = document.getElementById("err"), go = document.getElementById("go");
+  err.hidden = true; go.disabled = true; go.textContent = "Entrando…";
+  try {
+    const r = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+      body: JSON.stringify({ username: document.getElementById("u").value, password: document.getElementById("p").value }) });
+    const b = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(b.error || "No se pudo entrar.");
+    location.href = "/";
+  } catch (x) { err.textContent = x.message; err.hidden = false; go.disabled = false; go.textContent = "Entrar"; }
+});
+</script>
+</body>
+</html>

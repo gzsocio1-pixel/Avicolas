@@ -1,7 +1,8 @@
 # Control de Galeras
 
-Panel de control avícola de **Avícola San Isidro** y **Granja Pío Pío**: parvadas, pesos y mortalidad por galera, cierre y liquidación Cargill,
-costos por parvada, detalle de pagos, flujo mensual, resultados anuales e importación desde Excel y reporte semanal comparando todas las parvadas.
+Panel de control avícola: parvadas, pesos y mortalidad por galera (con descarte y muerte natural),
+reporte semanal, cierre y liquidación Cargill en córdobas (revisada contra las tablas de pago y el banco),
+costos por parvada, facturas de energía, detalle de pagos, flujo mensual, resultados anuales e importación desde Excel.
 
 Funciona con **Node.js** y guarda los datos en **PostgreSQL**. Cada persona entra con su usuario
 y contraseña.
@@ -38,8 +39,8 @@ y contraseña.
 
 1. Entra con el usuario y contraseña del paso anterior.
 2. Toca **Usuarios** (arriba a la derecha) → **Restaurar desde respaldo…**
-3. Elige el archivo `respaldo-control-de-galeras.json`. En segundos aparecen las parvadas de las dos granjas
-   (San Isidro y Pío Pío), pagos, costos y flujo mensual.
+3. Elige el archivo `respaldo-control-de-galeras.json`. En segundos aparecen tus 31 parvadas,
+   pagos, costos y flujo mensual.
 
 ### Paso 4. Agregar a tu equipo
 
@@ -56,9 +57,18 @@ En **Usuarios** también ves quién cambió qué y cuándo.
 
 ---
 
+## Actualizar a una versión nueva (si ya lo tienes en Render)
+
+1. En GitHub abre tu repositorio `control-de-galeras` y toca **Add file** → **Upload files**.
+2. Arrastra el contenido del zip nuevo (archivos y carpetas). GitHub reemplaza los que tengan el mismo nombre.
+3. Toca **Commit changes**. Render publica la versión nueva solo, en unos 3 a 5 minutos.
+4. Entra al panel → **Usuarios** → **Restaurar desde respaldo…** y elige el respaldo nuevo
+   (`respaldo-control-de-galeras.json`). Así cargas las liquidaciones, facturas de energía y semanas nuevas.
+   Restaurar reemplaza los documentos que trae el respaldo y no borra los demás.
+
 ## Uso diario
 
-- **Actualizar con Excel:** pestaña **Importar Excel**. Elige la granja arriba, sube el Comparativo y/o el Flujo de esa granja,
+- **Actualizar con Excel:** pestaña **Importar Excel**. Sube el Comparativo y/o el Flujo ASI,
   revisa la lista de cambios y toca **Guardar**.
 - **Respaldo:** una vez al mes, en **Usuarios** → **Descargar respaldo**. Guárdalo fuera de GitHub.
 - **Cambios al programa:** si alguien modifica los archivos en GitHub, Render publica la nueva
@@ -88,7 +98,7 @@ Revisa los precios vigentes en <https://render.com/pricing>.
   Ver `.env.example`.
 - Tablas (se crean solas al iniciar): `docs` (colección, id, datos JSON), `users`, `changes` (bitácora), `meta`.
 - Colecciones: `flocks` (parvadas), `years` (resultado anual), `payments` (pagos por mes),
-  `cashflow` (flujo mensual).
+  `cashflow` (flujo mensual), `energy` (facturas de energía).
 - `public/index.html` es el panel; `public/shim.js` lo conecta con la API (`/api/data`, `/api/doc/…`,
   `/api/batch`, `/api/admin/…`).
 - El lector de Excel funciona dentro del navegador, sin librerías externas.

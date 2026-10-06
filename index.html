@@ -176,10 +176,9 @@ details summary{cursor:pointer;padding:6px 0}
 .obs{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:9px;max-width:95ch;line-height:1.5}
 .obs b{font-family:var(--f-display)}
 .sim-out{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-.userbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.userbar .who-me{display:flex;flex-direction:column;line-height:1.15;text-align:right}
-.userbar .who-me small{color:var(--ink-3);font-size:11.5px}
-a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center}
+td.l,th.l{text-align:left}
+.lq-sub td{color:var(--ink-2);font-weight:400}
+.lq-sub td:first-child{padding-left:24px;font-weight:400}
 </style>
 
 <header class="top">
@@ -202,6 +201,8 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center}
       <button class="tab" role="tab" data-tab="semanal" aria-selected="false">Reporte semanal</button>
       <button class="tab" role="tab" data-tab="comparativo" aria-selected="false">Comparativo</button>
       <button class="tab" role="tab" data-tab="costos" aria-selected="false">Costos</button>
+      <button class="tab" role="tab" data-tab="liquidaciones" aria-selected="false">Liquidaciones</button>
+      <button class="tab" role="tab" data-tab="energia" aria-selected="false">Energía</button>
       <button class="tab" role="tab" data-tab="pagos" aria-selected="false">Pagos</button>
       <button class="tab" role="tab" data-tab="apendice" aria-selected="false">Apéndice</button>
       <button class="tab" role="tab" data-tab="importar" aria-selected="false">Importar Excel</button>
@@ -218,6 +219,8 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center}
   <section class="view" id="v-semanal" hidden></section>
   <section class="view" id="v-comparativo" hidden></section>
   <section class="view" id="v-costos" hidden></section>
+  <section class="view" id="v-liquidaciones" hidden></section>
+  <section class="view" id="v-energia" hidden></section>
   <section class="view" id="v-pagos" hidden></section>
   <section class="view" id="v-apendice" hidden></section>
   <section class="view" id="v-importar" hidden></section>
@@ -227,29 +230,31 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center}
 <script>
 (function(){
 "use strict";
-/* Cada granja numera sus parvadas corrido (P1, P2…). Un año Cargill = 7 parvadas.
-   Pío Pío: el Año 1 tuvo solo 2 parvadas (P1–P2); desde el Año 2 son 7 por año. */
-const FARMS=[
-  {id:"SI",name:"Avícola San Isidro",y0:2021,cycOf:n=>Math.floor((n-1)/7)+1,cycStart:c=>(c-1)*7+1,note:""},
-  {id:"PP",name:"Granja Pío Pío",y0:2023,cycOf:n=>n<=2?1:Math.floor((n-3)/7)+2,cycStart:c=>c<=1?1:3+(c-2)*7,note:" (el Año 1 tuvo solo 2 parvadas)"}];
-const FC=id=>FARMS.find(x=>x.id===id)||FARMS[0];
-const cycOf=(n,farm)=>FC(farm||S.farm).cycOf(n);
-const cycStart=(c,farm)=>FC(farm||S.farm).cycStart(c);
+const FARMS=[{id:"SI",name:"Avícola San Isidro"},{id:"PP",name:"Granja Pío Pío"}];
 const G=10, WEEKS=7, LB2KG=0.45359237, QQ=100, M2=2916; /* galera 162 × 18 m */
 /* Tabla de pago Cargill 2025 */
 const PAY={mejora:0.0086,inv:0.012,
   base:[[0,4.49,0.042],[4.5,5.35,0.041],[5.36,5.45,0.0416],[5.46,5.55,0.0422],[5.56,5.65,0.0428],[5.66,12,0.0434]],
   fcr:{"1.70":-0.0095,"1.69":-0.0085,"1.68":-0.0076,"1.67":-0.0066,"1.66":-0.0057,"1.65":-0.0047,"1.64":-0.0038,"1.63":-0.0028,"1.62":-0.0019,"1.61":-0.0009,"1.60":0,"1.59":0.0101,"1.58":0.011,"1.57":0.0119,"1.56":0.0128,"1.55":0.0137,"1.54":0.0146,"1.53":0.0155,"1.52":0.0164,"1.51":0.0173,"1.50":0.0182,"1.49":0.0191,"1.48":0.02,"1.47":0.0209,"1.46":0.0218,"1.45":0.0227,"1.44":0.0236,"1.43":0.0245,"1.42":0.0254,"1.41":0.0227}};
-function pay(w,fcr){
-  if(!(w>0)||!(fcr>0))return null;
-  const b=PAY.base.find(r=>w>=r[0]&&w<=r[1]+0.0099)||PAY.base[PAY.base.length-1];
-  let k=Math.round(fcr*100)/100;k=Math.min(1.70,Math.max(1.41,k));
+/* Historial de tablas de pago Cargill (vigentes por fecha de colocación). La de junio 2023 se dedujo de las liquidaciones. */
+const PAY_T=[
+  {id:"2022-11",lab:"noviembre 2022",from:"2022-09-01",mejora:0.0086,inv:0.007,base:[[0,4.49,0.041],[4.5,5.40,0.0394],[5.41,5.50,0.0398],[5.51,5.60,0.0402],[5.61,5.70,0.0406],[5.71,12,0.0410]]},
+  {id:"2023-06",lab:"junio 2023 (deducida: noviembre 2022 con inversión de 0.012)",from:"2023-06-01",mejora:0.0086,inv:0.012,base:[[0,4.49,0.041],[4.5,5.40,0.0394],[5.41,5.50,0.0398],[5.51,5.60,0.0402],[5.61,5.70,0.0406],[5.71,12,0.0410]]},
+  {id:"2023-12",lab:"diciembre 2023",from:"2023-12-01",mejora:0.0086,inv:0.012,base:[[0,4.49,0.041],[4.5,5.35,0.0394],[5.36,5.45,0.0400],[5.46,5.55,0.0406],[5.56,5.65,0.0412],[5.66,12,0.0418]]},
+  {id:"2025-09",lab:"septiembre 2025",from:"2025-09-01",mejora:PAY.mejora,inv:PAY.inv,base:PAY.base}
+];
+function tableFor(date){if(!date)return PAY_T[PAY_T.length-1];let t=null;PAY_T.forEach(x=>{if(date>=x.from)t=x});return t}
+function payWith(T,w,fcr,round){
+  if(!T||!(w>0)||!(fcr>0))return null;
+  const b=T.base.find(r=>w>=r[0]&&w<=r[1]+0.0099)||T.base[T.base.length-1];
+  let k=round==="down"?Math.floor(fcr*100+1e-9)/100:round==="up"?Math.ceil(fcr*100-1e-9)/100:Math.round(fcr*100+1e-9)/100;k=Math.min(1.70,Math.max(1.41,k));
   const bf=PAY.fcr[k.toFixed(2)]??0;
-  return {base:b[2],mejora:PAY.mejora,inv:PAY.inv,bfcr:bf,total:b[2]+PAY.mejora+PAY.inv+bf,fcrKey:k};
+  return {base:b[2],mejora:T.mejora,inv:T.inv,bfcr:bf,total:b[2]+T.mejora+T.inv+bf,fcrKey:k,T};
 }
+function pay(w,fcr){return payWith(PAY_T[PAY_T.length-1],w,fcr)}
 const $=s=>document.querySelector(s);
-const S={flocks:new Map(),years:new Map(),pay:new Map(),cash:new Map(),cashPer:null,imp:null,costCyc:null,pf:null,delPay:null,farm:"SI",sel:null,tab:"panel",gWeek:null,capMode:1,chartMetric:"wFinal",db:null,dl:null,loaded:false,readonly:false,draft:null,confirmDel:false,sim:null,panelChart:"margin"};
-try{const t=localStorage.getItem("cg.tab");if(t)S.tab=t;const f=localStorage.getItem("cg.farm");if(f&&FARMS.some(x=>x.id===f))S.farm=f;}catch(e){}
+const S={energy:new Map(),enSel:null,flocks:new Map(),years:new Map(),pay:new Map(),cash:new Map(),cashPer:null,imp:null,costCyc:null,pf:null,delPay:null,farm:"SI",sel:null,tab:"panel",gWeek:null,capMode:1,chartMetric:"wFinal",db:null,dl:null,loaded:false,readonly:false,draft:null,confirmDel:false,sim:null,panelChart:"margin"};
+try{const t=localStorage.getItem("cg.tab2");if(t)S.tab=t;const f=localStorage.getItem("cg.farm");if(f)S.farm=f;}catch(e){}
 
 /* ---------- utilidades ---------- */
 const ok=v=>v!==null&&v!==undefined&&v!==""&&!isNaN(v);
@@ -272,16 +277,16 @@ const days=(a,b)=>Math.round((pd(b)-pd(a))/864e5);
 const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 const todayStr=()=>iso(new Date());
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const flockName=f=>{const cn=f.close&&f.close.cname;return cn?`${cn} · P${f.num}`:"Parvada "+f.num};
+const flockName=f=>"Parvada "+f.num;
 const farmName=id=>(FARMS.find(x=>x.id===id)||{name:id}).name;
 const cycLabel=n=>ok(n)?`Año ${n}`:"—";
-const cycYears=(n,farm)=>{if(!ok(n))return "";const y=FC(farm||S.farm).y0+n;return `${y}-${String((y+1)%100).padStart(2,"0")}`};
+const cycYears=n=>ok(n)?`${2021+n}-${String(22+n).padStart(2,"0")}`:"";
 function toast(msg){const t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2600)}
 function arr(a,n){const o=Array.isArray(a)?a.slice(0,n):[];while(o.length<n)o.push(null);return o}
 function norm(doc){
   const f=Object.assign({},doc);
   f.placed=arr(f.placed,G);f.hAge=arr(f.hAge,G);f.hWt=arr(f.hWt,G);f.left=arr(f.left,G);
-  f.w=arr(f.w,WEEKS).map(r=>arr(r,G));f.mc=arr(f.mc,WEEKS).map(r=>arr(r,G));f.fcrW=arr(f.fcrW,WEEKS).map(r=>arr(r,G));f.f=arr(f.f,WEEKS).map(r=>arr(r,G));
+  f.w=arr(f.w,WEEKS).map(r=>arr(r,G));f.mc=arr(f.mc,WEEKS).map(r=>arr(r,G));f.f=arr(f.f,WEEKS).map(r=>arr(r,G));
   f.close=Object.assign({},f.close||{});if(f.close.costs)f.close.costs=Object.assign({},f.close.costs);
   return f;
 }
@@ -321,7 +326,7 @@ function calc(f){
       cv:ok(w)&&vals(wg).length>1?sd(wg)/w*100:null,
       min:vals(wg).length?Math.min(...vals(wg)):null,max:vals(wg).length?Math.max(...vals(wg)):null,
       mg,mortCum,mortW,deadG,deathsCum,alive,feed:fW,feedCum:anyF?cumF:null,cumFg:cumFg.slice(),
-      fcrG:n?f.fcrW[n].slice():null,fcr:(anyF&&ok(w)&&alive>0&&w>0)?(cumF*QQ)/(alive*w):(n?mean(f.fcrW[n]):null)});
+      fcr:(anyF&&ok(w)&&alive>0&&w>0)?(cumF*QQ)/(alive*w):null});
   }
   const withW=weeks.filter(r=>ok(r.w));const last=withW.length?withW[withW.length-1]:null;
   const lastM=[...weeks].reverse().find(r=>ok(r.mortCum));
@@ -340,27 +345,42 @@ function calc(f){
   const eefCalc=(ok(viab)&&ok(wFinal)&&ok(age)&&ok(fcr)&&fcr>0)?viab*wFinal*LB2KG/(age*fcr)*100:null;
   const eef=first(C.eef,eefCalc);
   const adgT=(ok(wFinal)&&ok(W0)&&ok(age)&&age>0)?(wFinal-W0)/age:null;
-  const tab=pay(wFinal,fcr);
-  const price=first(C.price,closed&&tab?tab.total:null);
-  const liq=first(C.liq,price);
-  const liqSrc=ok(C.liq)?"liquidado":ok(C.price)?"precio de tabla":tab?"estimado con tabla 2025":"";
+  const LQ=liqDetail(C,lbs);
+  const T=tableFor((C.liqC&&C.liqC.place)||f.start);
+  const wT=first(LQ&&LQ.prod.w,wFinal),fT=first(LQ&&LQ.prod.fcr,fcr);
+  let tab=payWith(T,wT,fT);
+  if(tab&&LQ&&ok(LQ.usdLb.conv)&&Math.abs(fT*100-Math.round(fT*100))>0.4){ // conversión en el borde (x.xx5): Cargill redondea con más decimales
+    const alt=payWith(T,wT,fT,fT*100-Math.floor(fT*100)>=0.5?"down":"up");if(alt&&Math.abs(alt.bfcr-LQ.usdLb.conv)<Math.abs(tab.bfcr-LQ.usdLb.conv))tab=alt}const U=k=>LQ?LQ.usdLb[k]:null;
+  const price=first(C.price,closed&&tab?tab.total:null);const tabW=wT,tabF=fT;
+  const liq=first(U("total"),C.liq,price);
+  const liqSrc=ok(U("total"))?"liquidación Cargill en córdobas":ok(C.liq)?"liquidado":ok(C.price)?"precio de tabla":tab?"estimado con la tabla de pago":"";
   const income=(ok(lbs)&&ok(liq))?lbs*liq:null;
   const cost=first(C.cost);const costLb=(ok(cost)&&lbs)?cost/lbs:null;
-  /* químicos de habilitación que Cargill descuenta en el crédito final */
-  /* Cargill los debita del crédito final; en “Costo x PV” están como “Consumo (Químicos)”, así que ya van dentro del costo */
-  const chemKey=C.costs?Object.keys(C.costs).find(k=>/^consumo\s*\(qu[ií]micos\)/i.test(k)):null;
-  const hab=first(C.hab,chemKey?C.costs[chemKey]:null);const habLb=(ok(hab)&&lbs)?hab/lbs:null;
-  const netIncome=ok(income)?income-(hab||0):null;const liqNet=ok(liq)?liq-(habLb||0):null;
   const marginLb=(ok(liq)&&ok(costLb))?liq-costLb:null;
   const profit=(ok(income)&&ok(cost))?income-cost:null;
   const perBird=first(C.perBird,(ok(liq)&&ok(wFinal))?liq*wFinal:null);
   const feedBird=first(C.feedBird,(ok(feedQQ)&&alive)?feedQQ*QQ/alive:null);
   const dayNow=f.start?Math.max(0,days(f.start,todayStr())):null;
   return {f,C,weeks,placedT,W0,last,lastM,closed,birds,dead,mort,viab,alive,age,wFinal,wFinalSrc:ok(C.wHarvest)?"cierre":ok(hWt)?"peso de cosecha":"último pesaje",
-    lbs,feedQQ,feedBird,fcr,eef,adgT,price,liq,liqSrc,income,cost,costLb,marginLb,profit,perBird,hab,habLb,habEst:false,netIncome,liqNet,
+    lbs,feedQQ,feedBird,fcr,eef,adgT,price,liq,liqSrc,income,cost,costLb,marginLb,profit,perBird,
     hAge,leftT,leftPct:(ok(leftT)&&birds)?leftT/birds*100:null,dayNow,cycle:f.cycle,
     density:ok(birds)?birds/G/M2:null,wThin:first(C.wThin),thinPct:ok(C.thinPct)?C.thinPct*100:null,sanitary:first(C.sanitary),
-    pBase:first(C.pBase),bConv:first(C.bConv),bMejora:first(C.bMejora),bInv:first(C.bInv),tab};
+    pBase:first(C.pBase,U("base")),bConv:first(C.bConv,U("conv")),bMejora:first(C.bMejora,U("mejora")),bInv:first(C.bInv,U("inv")),tab,tabW,tabF,T,LQ,
+    liqReal:ok(C.liq)||ok(U("total")),lbsG:arr(f.lbsG,G)};
+}
+/* Liquidación Cargill en córdobas (documento de liquidación) */
+function liqDetail(C,lbs0){
+  const L=C.liqC;if(!L||!ok(L.tc)||!ok(L.total))return null;const tc=+L.tc;const prod=L.prod||{};const lbs=first(prod.lbs,lbs0);const tcB=first(L.tcBank,tc);
+  const recon=first(L.recon)||0;
+  const cons=first(L.cons,ok(L.quim)?L.quim-recon:null);
+  const preIva=first(L.preIva,ok(cons)?L.total-cons:null);
+  const iva=first(L.iva,ok(preIva)?preIva*0.15:null);
+  const neto=first(L.neto,ok(preIva)&&ok(iva)?preIva+iva:null);
+  const ir=first(L.ir,ok(preIva)?preIva*0.02:null);
+  const depFlock=ok(preIva)&&ok(ir)?preIva-ir:null;
+  const dep=ok(depFlock)&&ok(iva)?depFlock+iva:null;
+  const usdLb={};["base","conv","inv","mejora","total"].forEach(k=>usdLb[k]=ok(L[k])&&lbs?L[k]/tc/lbs:null);
+  return {L,tc,tcB,lbs,prod,quim:first(L.quim,ok(cons)?cons+recon:null),recon,cons,preIva,iva,neto,ir,depFlock,dep,usdLb,date:L.date||null};
 }
 function farmFlocks(farm){return [...S.flocks.values()].filter(f=>f.farm===farm).sort((a,b)=>a.num-b.num)}
 const _cc=new WeakMap();
@@ -377,7 +397,7 @@ function hist(farm,exclId){
   }
   const cl=cs.filter(c=>c.closed);const m=k=>mean(cl.map(c=>c[k]));
   return {wk,count:cs.length,wFinal:m("wFinal"),adgT:m("adgT"),age:m("age"),mort:m("mort"),leftT:m("leftT"),fcr:m("fcr"),eef:m("eef"),
-    liq:m("liq"),liqNet:m("liqNet"),hab:m("hab"),costLb:m("costLb"),marginLb:m("marginLb"),profit:m("profit"),lbs:m("lbs")};
+    liq:m("liq"),costLb:m("costLb"),marginLb:m("marginLb"),profit:m("profit"),lbs:m("lbs")};
 }
 function cycleAgg(farm,cyc){
   const cs=farmFlocks(farm).map(C_).filter(c=>c.cycle===cyc);
@@ -385,7 +405,6 @@ function cycleAgg(farm,cyc){
   const s=k=>sum(cl.map(c=>c[k])),m=k=>mean(cl.map(c=>c[k]));
   const birds=s("birds"),dead=s("dead"),alive=s("alive"),lbs=s("lbs"),feed=s("feedQQ"),income=s("income");
   const wc=cl.filter(c=>ok(c.cost)&&ok(c.lbs));const cost=sum(wc.map(c=>c.cost)),lbsC=sum(wc.map(c=>c.lbs)),incC=sum(wc.map(c=>c.income));
-  const hab=sum(cl.map(c=>c.hab));const habN=cl.filter(c=>ok(c.hab)).length;
   const tabInc=sum(cl.map(c=>ok(c.price)&&ok(c.lbs)?c.price*c.lbs:null));
   const Y=S.years.get(farm+"-"+cyc)||null;
   return {cyc,n:cl.length,nAll:cs.length,running:cs.length-cl.length,birds,dead,alive,lbs,feed,income,cost,
@@ -395,7 +414,7 @@ function cycleAgg(farm,cyc){
     pBase:m("pBase"),bConv:m("bConv"),bMejora:m("bMejora"),bInv:m("bInv"),
     price:(ok(tabInc)&&lbs)?tabInc/lbs:m("price"),liq:(ok(income)&&lbs)?income/lbs:m("liq"),perBird:m("perBird"),
     costLb:(ok(cost)&&lbsC)?cost/lbsC:null,marginLb:(ok(incC)&&ok(cost)&&lbsC)?(incC-cost)/lbsC:null,profitOp:(ok(incC)&&ok(cost))?incC-cost:null,
-    Y,hab,habN,deduct:ok(hab)?hab:null,diffBank:(Y&&ok(Y.incomeLbs)&&ok(income))?income-Y.incomeLbs:null,netIncome:ok(income)?income-(hab||0):null,
+    Y,deduct:(Y&&ok(Y.incomeLbs)&&ok(income))?income-Y.incomeLbs:null,
     flocks:cs};
 }
 function cyclesOf(farm){return [...new Set(farmFlocks(farm).map(f=>f.cycle).filter(ok))].sort((a,b)=>a-b)}
@@ -537,7 +556,7 @@ const XP=(function(){
     if(hdrRow<0)throw new Error("No encontré la fila con “Parvada 1, Parvada 2…” en la hoja Pesos.");
     const cols={};(g[hdrRow]||[]).forEach((v,c)=>{const m=/^parvada\s*(\d+)$/.exec(norm(v));if(m)cols[+m[1]]=c});
     const labCol=r=>{for(let c=0;c<5;c++){const v=norm(cell(g,r,c));if(v)return v}return ""};
-    let rIni=-1,rCos=-1;for(let r=0;r<30;r++){for(let c=0;c<6;c++){const v=norm(cell(g,r,c));if(/^(fecha|f)\s*\/\s*inicio$/.test(v))rIni=r;if(/^(fecha|f)\s*\/\s*cosecha$/.test(v))rCos=r}}
+    let rIni=-1,rCos=-1;for(let r=0;r<30;r++){for(let c=0;c<6;c++){const v=norm(cell(g,r,c));if(v==="fecha/inicio")rIni=r;if(v==="fecha/cosecha")rCos=r}}
     // bloques de 10 galeras: fila donde alguna col 0..5 dice "G1"
     const blocks=[];
     for(let r=0;r<g.length;r++){
@@ -547,15 +566,15 @@ const XP=(function(){
       let lab="";for(let k=0;k<10;k++)for(let c=0;c<gc;c++){const v=norm(cell(g,r+k,c));if(v&&!lab&&isNaN(+v))lab=v}
       const tot=norm(cell(g,r+10,gc));let day=null;for(let c=0;c<gc;c++){const v=cell(g,r+10,c);if(isNum(v))day=v}
       // cabecera del bloque: fila anterior con "Parvada N" / "Mor"
-      const hr=r-1;const mcols=[],fcols=[];(g[hr]||[]).forEach((v,c)=>{const t=norm(v);if(/^mor/.test(t))mcols.push(c);if(/^fcr\s*\d/.test(t))fcols.push(c)});
-      blocks.push({r,gc,lab,tot,day,mcols,fcols});
+      const hr=r-1;const mcols=[];(g[hr]||[]).forEach((v,c)=>{if(/^mor/.test(norm(v)))mcols.push(c)});
+      blocks.push({r,gc,lab,tot,day,mcols});
       r+=9;
     }
     let kindOf=b=>{if(/recibid/.test(b.lab))return "placed";if(/cero|recepcion/.test(b.lab))return "w0";if(/ratio/.test(b.lab))return "skip";
       if(/edad\s*cosecha/.test(b.lab))return "hAge";if(/quedad/.test(b.lab))return "left";if(/semana/.test(b.lab)||b.tot==="prom")return "week";return "skip"};
     const nums=Object.keys(cols).map(Number).sort((a,b)=>a-b);
     nums.forEach(n=>{const c=cols[n];const st=rIni>=0?serialToISO(cell(g,rIni,c)):null,hv=rCos>=0?serialToISO(cell(g,rCos,c)):null;
-      flocks[n]={num:n,start:st,harvest:hv,placed:Array(10).fill(null),w:Array.from({length:7},()=>Array(10).fill(null)),mc:Array.from({length:7},()=>Array(10).fill(null)),fcrW:Array.from({length:7},()=>Array(10).fill(null)),hAge:Array(10).fill(null),left:Array(10).fill(null)}});
+      flocks[n]={num:n,start:st,harvest:hv,placed:Array(10).fill(null),w:Array.from({length:7},()=>Array(10).fill(null)),mc:Array.from({length:7},()=>Array(10).fill(null)),hAge:Array(10).fill(null),left:Array(10).fill(null)}});
     let seenW=0;
     blocks.forEach(b=>{
       const k=kindOf(b);if(k==="skip")return;
@@ -568,7 +587,6 @@ const XP=(function(){
           else if(k==="left")F.left[gi]=isNum(v)?Math.round(v):null;
           else F.w[wk][gi]=rnd(v,3);
           if((k==="week"||k==="w0")&&wk>0&&b.mcols.length){const mc=b.mcols[idx];if(mc!==undefined){const m=cell(g,b.r+gi,mc);F.mc[wk][gi]=rnd(m,3)}}
-          if(k==="week"&&wk>0&&b.fcols.length){const fc=b.fcols[idx];if(fc!==undefined){const x=cell(g,b.r+gi,fc);F.fcrW[wk][gi]=isNum(x)&&x>0.3&&x<3?rnd(x,3):null}}
         }});
       if(k==="week"||k==="w0")seenW++;
     });
@@ -584,28 +602,26 @@ const XP=(function(){
     "uniforme personal granja":"Uniforme personal granja","energia electrica":"Energía eléctrica","reparacion y mantenimiento":"Reparación y mantenimiento","herramientas y suministros":"Herramientas y suministros",
     "servicios profesionales":"Servicios profesionales","viaticos":"Viáticos","limpieza de galeras":"Limpieza de galeras","inversiones/mejoras":"Inversiones y mejoras","seguro total de la granja":"Seguro de la granja",
     "retenciones en la fuente":"Retenciones en la fuente","suministros de oficina":"Suministros de oficina","gastos varios":"Gastos varios","administrativo":"Administrativo","transporte":"Transporte",
-    "internet":"Internet","inss":"INSS","repuestos y accesorios":"Repuestos y accesorios","gastos apertura":"Gastos de apertura","pago dgi":"Pago DGI","servicios contables":"Servicios contables","servicios gestoria":"Servicios de gestoría","servicios de gestoria":"Servicios de gestoría","servicios administrativos":"Servicios administrativos","maquinaria":"Maquinaria","servicios de vigilancia":"Servicios de vigilancia","reparacion y mantenimiento":"Reparación y mantenimiento"};
+    "internet":"Internet","inss":"INSS","repuestos y accesorios":"Repuestos y accesorios","gastos apertura":"Gastos de apertura","pago dgi":"Pago DGI"};
   function bank(b){if(!b)return "";const s=String(b).replace(/\s+/g," ").trim().toUpperCase().replace("FICHOSA","FICOHSA");if(s==="TARJETA")return "Tarjeta";
     const m=/(FICOHSA|BANPRO|LAFISE)\s*(C\$|\$)?/.exec(s);if(m)return m[1][0]+m[1].slice(1).toLowerCase()+" "+(m[2]||"C$");return s}
   const MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
   const CF_PARENT=[/^salarios y bono/,/^pago seguro social/,/^suministros para galpon/,/^combustible \+ lpg/];
   const CF_TOTAL=[/^ingresos$/,/^total egresos/,/^total abono/,/^saldo disponible/,/^total a final/];
   async function parseFlujo(wb){
-    const warn=[];const out={close:{},years:{},payments:{},cash:{},cashRows:[],graf:[]};
+    const warn=[];const out={close:{},years:{},payments:{},cash:{},cashRows:[]};
     const shF=findSheet(wb,/flujo mensual/);
     if(shF){const g=await wb.grid(shF,160,140);
       // --- cierre por parvada
       let hr=-1;for(let r=0;r<20&&hr<0;r++){if((g[r]||[]).filter(v=>/^p\d+[\s-]/.test(norm(v))).length>3)hr=r}
       let endR=g.findIndex(row=>row&&row.some(v=>norm(v)==="flujo de ingresos"));if(endR<0)endR=60;
       if(hr>=0){const pc={};g[hr].forEach((v,c)=>{const m=/^p(\d+)[\s-]/.exec(norm(v));if(m)pc[+m[1]]=c});
-        /* nombre Cargill (“Parvada 6 2024”, “Parvada 1 2025-26”) en la fila de arriba */
-        Object.entries(pc).forEach(([n,c])=>{const v=String(cell(g,hr-1,c)??"").replace(/\s+/g," ").trim();if(/^parvada\s*\d+\s+\d{4}/i.test(v))(out.close[n]=out.close[n]||{}).cname=v.replace(/^parvada/i,"Parvada")});
         for(let r=hr+1;r<endR;r++){let lab="";let lc=-1;for(let c=0;c<9;c++){const v=norm(cell(g,r,c));if(v&&isNaN(+v)){lab=v;lc=c}}
           const mp=CLOSE_MAP.find(m=>m[0].test(lab));if(!mp)continue;
           Object.entries(pc).forEach(([n,c])=>{const v=cell(g,r,c);if(isNum(v)){(out.close[n]=out.close[n]||{})[mp[1]]=rnd(v,mp[2])}});}
       } else warn.push("No encontré la fila de parvadas (P1, P2…) en “FLUJO Mensual detallado”.");
       // --- flujo mensual
-      const yrRow=endR-2>=0?endR-3:0;let mRow=-1;for(let r=endR-4;r<endR+2;r++){const row=g[r]||[];if(row.some(v=>norm(v)==="enero")||row.filter(v=>isNum(v)&&v>40000&&v<60000&&Math.abs(v-Math.round(v))<1e-9).length>=6){mRow=r;break}}
+      const yrRow=endR-2>=0?endR-3:0;let mRow=-1;for(let r=endR-4;r<endR+2;r++){if((g[r]||[]).some(v=>norm(v)==="enero"))mRow=r}
       if(mRow>=0){const yRowIdx=(()=>{for(let r=mRow-1;r>=mRow-4;r--){if((g[r]||[]).some(v=>isNum(v)&&v>2000&&v<2100))return r}return -1})();
         const mcols=[];let curY=null;const row=g[mRow]||[];
         for(let c=0;c<row.length;c++){const yv=yRowIdx>=0?cell(g,yRowIdx,c):null;if(isNum(yv)&&yv>2000&&yv<2100)curY=yv;
@@ -631,35 +647,27 @@ const XP=(function(){
     const shG=findSheet(wb,/^graficos$/);
     if(shG){const g=await wb.grid(shG,80,20);let hr=g.findIndex(row=>row&&row.some(v=>norm(v)==="liquidacion"));
       if(hr>=0){const cL=g[hr].findIndex(v=>norm(v)==="liquidacion"),cP=g[hr].findIndex(v=>/\$\/pollo/.test(norm(v))),cA=g[hr].findIndex(v=>norm(v)==="ano"),cV=g[hr].findIndex(v=>norm(v)==="parvada");
-        for(let r=hr+1;r<g.length;r++){const a=/(\d+)/.exec(norm(cell(g,r,cA))),p=/(\d+)/.exec(norm(cell(g,r,cV)));if(!a||!p)continue;out.graf.push({a:+a[1],p:+p[1],liq:isNum(cell(g,r,cL))?rnd(cell(g,r,cL),5):null,perBird:cP>=0&&isNum(cell(g,r,cP))?rnd(cell(g,r,cP),4):null})}}}
+        for(let r=hr+1;r<g.length;r++){const a=/(\d+)/.exec(norm(cell(g,r,cA))),p=/(\d+)/.exec(norm(cell(g,r,cV)));if(!a||!p)continue;const n=(+a[1]-1)*7+(+p[1]);
+          const o=out.close[n]=out.close[n]||{};if(isNum(cell(g,r,cL)))o.liq=rnd(cell(g,r,cL),5);if(cP>=0&&isNum(cell(g,r,cP)))o.perBird=rnd(cell(g,r,cP),4)}}}
     // --- costo por parvada
     const shC=findSheet(wb,/^costo x pv$/);
-    if(shC){const g=await wb.grid(shC,60,60);
-      /* formato Pío Pío: fila con “PV 1 2025, PV 2 2025…” y rubros en la columna A */
-      const hp=g.findIndex(row=>row&&row.filter(v=>/^pv\s*\d+\s+\d{4}$/.test(norm(v))).length>=3);
-      if(hp>=0){const tr=g.findIndex(row=>row&&/^total de costo/.test(norm(row[0])));
-        if(tr>0){g[hp].forEach((v,c)=>{const m=/^pv\s*(\d+)\s+\d{4}$/.exec(norm(v));if(!m)return;const n=+m[1];const tot=cell(g,tr,c);if(!isNum(tot)||tot===0)return;
-          const o=out.close[n]=out.close[n]||{};o.cost=rnd(tot,2);const cats={};
-          for(let r=hp+1;r<tr;r++){const lab=String(cell(g,r,0)??"").trim();const x=cell(g,r,c);if(lab&&norm(lab)!=="categoria"&&isNum(x)&&x!==0)cats[lab]=rnd(x,2)}
-          if(Object.keys(cats).length)o.costs=cats});}
-        else warn.push("No encontré la fila “Total de costo” en “Costo x PV”.");}
-      else{const hr=g.findIndex(row=>row&&norm(row[1])==="numero parvada total");
+    if(shC){const g=await wb.grid(shC,60,60);const hr=g.findIndex(row=>row&&norm(row[1])==="numero parvada total");
       const tr=g.findIndex(row=>row&&/^total costo/.test(norm(row[1])));const cr=g.findIndex(row=>row&&norm(row[1])==="categoria");
       if(hr>=0&&tr>0){g[hr].forEach((v,c)=>{const m=/^p(\d+)$/.exec(norm(v));if(!m)return;const n=+m[1];const tot=cell(g,tr,c);if(!isNum(tot)||tot===0)return;
         const o=out.close[n]=out.close[n]||{};o.cost=rnd(tot,2);const cats={};for(let r=(cr>=0?cr+1:hr+2);r<tr;r++){const lab=String(cell(g,r,1)??"").trim();const x=cell(g,r,c);if(lab&&isNum(x))cats[lab]=rnd(x,2)}
         if(Object.keys(cats).length)o.costs=cats});}
-      else warn.push("No encontré el total por parvada en “Costo x PV”.");}}
+      else warn.push("No encontré el total por parvada en “Costo x PV”.");}
     const shC2=findSheet(wb,/^costo de parvada/);
     if(shC2){const g=await wb.grid(shC2,60,60);const hr=g.findIndex(row=>row&&row.some(v=>norm(v)==="categoria"));
       if(hr>=0)g[hr].forEach((v,c)=>{const m=/^p(\d+)$/.exec(norm(v));if(!m||norm(cell(g,hr,c-1))!=="categoria")return;const n=+m[1];
         for(let r=hr+1;r<g.length;r++){if(norm(cell(g,r,c-1))==="total general"){const x=cell(g,r,c);if(isNum(x)){const o=out.close[n]=out.close[n]||{};if(!ok(o.cost))o.cost=rnd(x,2)}break}}})}
     // --- comparativo anual (flujo de efectivo)
-    const shA=findSheet(wb,/comparativo anual/)||findSheet(wb,/^analisis/);
+    const shA=findSheet(wb,/comparativo anual/);
     if(shA){const g=await wb.grid(shA,120,20);const st=g.findIndex(row=>row&&row.some(v=>/^flujo de efectivo/.test(norm(v))));
       if(st>=0){const yc={};g[st].forEach((v,c)=>{const m=/^ano\s*(\d+)$/.exec(norm(v));if(m)yc[+m[1]]=c});
         const yl=g[st-1]||[];const MAP=[[/^ingreso lbs/,"incomeLbs"],[/^ingreso iva/,"iva"],[/^otros ingreso/,"otherIncome"],[/^total in\s*greso/,"incomeTotal"],[/^lbs$/,"lbs"],[/^gasto opera/,"opex"],[/^prestamo$/,"loan"],
-          [/^total gasto/,"expTotal"],[/^prestamo/,"loan"],[/^utilidad$/,"profit"],[/^roi$/,"roi"],[/^abonos a pm/,"partnerPay"],[/^flujo neto/,"netFlow"],[/^acumulado/,"cumFlow"]];
-        Object.entries(yc).forEach(([y,c])=>{const o={cycle:+y,label:String(cell(g,st-1,c)??"")};for(let r=st+1;r<g.length;r++){const lab=[0,1].map(c=>cell(g,r,c)).filter(v=>typeof v==="string").map(norm).find(Boolean)||"";const mp=MAP.find(m=>m[0].test(lab));if(mp&&isNum(cell(g,r,c)))o[mp[1]]=rnd(cell(g,r,c),mp[1]==="roi"?4:2)}
+          [/^total gasto/,"expTotal"],[/^utilidad$/,"profit"],[/^roi$/,"roi"],[/^abonos a pm/,"partnerPay"],[/^flujo neto/,"netFlow"],[/^acumulado/,"cumFlow"]];
+        Object.entries(yc).forEach(([y,c])=>{const o={cycle:+y,label:String(cell(g,st-1,c)??"")};for(let r=st+1;r<g.length;r++){const lab=norm(cell(g,r,1));const mp=MAP.find(m=>m[0].test(lab));if(mp&&isNum(cell(g,r,c)))o[mp[1]]=rnd(cell(g,r,c),mp[1]==="roi"?4:2)}
           if(Object.keys(o).length>3)out.years[y]=o});}}
     // --- detalle de pagos
     const shP=findSheet(wb,/detalle de pago/);
@@ -669,8 +677,8 @@ const XP=(function(){
         for(let r=hr+1;r<g.length;r++){const row=g[r]||[];const d=serialToISO(row[col("fecha")]);const cat=row[col("categoria")];
           const usdv=row[col("dolarizado")],tot=row[col("total")];
           if(!d||!cat||norm(cat)==="mmm"||(!isNum(usdv)&&!isNum(tot))){if(row.some(v=>v!==null&&v!==0&&!(isNum(v)&&v>30&&v<40)))skip++;continue}
-          let p=row[col("#p")];p=isNum(p)?"P"+p:(p?String(p).trim():"");{const mm=/^p\s*v?\s*(\d+)$/i.exec(p);if(mm)p="P"+(+mm[1])}
-          const k0=bank(row[col("banco")]);const o={d,c:CAT[norm(cat)]||String(cat).trim().replace(/^./,x=>x.toUpperCase()),p,m:(x=>({TRF:"TF",CHEQUE:"CK",EFE:"EF"}[x]||x))(String(row[col("pagado")]||row[col("forma de pago")]||"").trim().toUpperCase()),b:String(row[col("beneficiario")]||"").trim(),
+          let p=row[col("#p")];p=isNum(p)?"P"+p:(p?String(p).trim():"");
+          const k0=bank(row[col("banco")]);const o={d,c:CAT[norm(cat)]||String(cat).trim().replace(/^./,x=>x.toUpperCase()),p,m:String(row[col("pagado")]||"").trim().toUpperCase(),b:String(row[col("beneficiario")]||"").trim(),
             t:String(row[col("concepto")]||"").replace(/\s+/g," ").trim(),k:k0,s:rnd(row[col("subtotal")],2),r2:rnd(row[col("2%")],2)||null,r1:rnd(row[col("1%")],2)||null,iva:rnd(row[col("iva")],2)||null,tot:rnd(tot,2),tc:rnd(row[col("tco")],4),usd:rnd(usdv,2)};
           if(/C\$$/.test(o.k)&&isNum(o.tot)&&isNum(o.usd)&&Math.abs(o.tot-o.usd)<0.01)o.k=o.k.replace("C$","$");
           Object.keys(o).forEach(x=>{if(o[x]===null||o[x]===""||o[x]===undefined)delete o[x]});
@@ -689,7 +697,7 @@ function statusPill(c){return c.closed?`<span class="pill">Cerrada</span>`:`<spa
 function mortClass(v,weekly){if(!ok(v))return "";return weekly?(v>2?"dn":v>1?"wn":""):(v>6?"dn":v>5?"wn":"")}
 function emptyState(){
   if(!S.loaded)return `<div class="empty"><h2>Cargando parvadas…</h2><p>Aquí aparecerán los indicadores de cada parvada y de cada año.</p></div>`;
-  if(!S.db)return `<div class="empty"><h2>Sin conexión a los datos</h2><p>Revisa tu conexión a internet e inicia sesión de nuevo para ver y guardar las parvadas.</p></div>`;
+  if(!S.db)return `<div class="empty"><h2>Sin conexión a los datos</h2><p>Abre esta página con tu cuenta de Claude para ver y guardar las parvadas.</p></div>`;
   return `<div class="empty"><h2>${esc(farmName(S.farm))} aún no tiene parvadas</h2><p>Ve a <b>Captura</b> y crea la primera parvada con su fecha de recepción.</p><button class="btn primary" id="goCap">Crear parvada</button></div>`;
 }
 function goFlock(id){const f=S.flocks.get(id);if(!f)return;S.sel=id;S.farm=f.farm;S.gWeek=null;S.draft=null;setTab("reporte")}
@@ -717,6 +725,8 @@ function alertsFor(){
       if(ok(d)&&d>0.75)out.push({lvl:d>1.5?"bad":"warn",who,id:f._id,t:`Mortalidad acumulada a semana ${M.n}: ${pct(M.mortCum)} (histórico ${pct(hm)} a esa edad)`});
       if(ok(M.mortW)&&M.mortW>1.2&&M.n>1)out.push({lvl:M.mortW>2?"bad":"warn",who,id:f._id,t:`Mortalidad de la semana ${M.n}: ${pct(M.mortW)}`});
       const hiG=M.mg.map((v,i)=>({v,i})).filter(o=>ok(o.v)&&o.v>M.mortCum+1.5).map(o=>`G${o.i+1} (${fx(o.v,2)}%)`);
+      if(f.cull&&f.cull[M.n]){const cg=f.cull[M.n].map((v,i)=>({v,i,p:ok(v)&&ok(f.placed[i])?v/f.placed[i]*100:null})).filter(o=>ok(o.p)&&o.p>1);const tc=sum(f.cull[M.n]),tn=sum(f.nat&&f.nat[M.n]||[]);
+        if(cg.length)out.push({lvl:"warn",who,id:f._id,t:`Descarte alto en semana ${M.n}: ${cg.map(o=>`G${o.i+1} (${fi(o.v)} aves, ${fx(o.p,2)}%)`).join(", ")}${ok(tc)&&ok(tn)?` · en total ${fi(tc)} descartadas y ${fi(tn)} muertes naturales`:""}`})}
       if(hiG.length)out.push({lvl:"warn",who,id:f._id,t:`Galeras con mortalidad alta en semana ${M.n}: ${hiG.join(", ")}`});}
     for(let n=1;n<WEEKS;n++){if(ok(c.dayNow)&&c.dayNow>=n*7+2&&!ok(c.weeks[n].w)&&(!f.harvest||days(f.start,f.harvest)>=n*7)){out.push({lvl:"info",who,id:f._id,t:`Falta capturar el pesaje de la semana ${n} (día ${n*7})`});break}}
     const miss=c.weeks.slice(1).filter(r=>ok(r.w)).flatMap(r=>r.wg.map((v,i)=>ok(v)?null:`S${r.n}·G${i+1}`).filter(Boolean));
@@ -729,7 +739,9 @@ function alertsFor(){
     if(ok(c.mort)&&ok(h.mort)&&c.mort-h.mort>1)out.push({lvl:"warn",who,id:c.f._id,t:`Última parvada cerró con mortalidad ${pct(c.mort)} (promedio ${pct(h.mort)})`});
     if(ok(c.marginLb)&&ok(h.marginLb)&&diffPct(c.marginLb,h.marginLb)<-15)out.push({lvl:"warn",who,id:c.f._id,t:`Margen por libra de la última parvada ${usd(c.marginLb,4)} vs promedio ${usd(h.marginLb,4)}`});
     if(ok(c.costLb)&&ok(h.costLb)&&diffPct(c.costLb,h.costLb)>10)out.push({lvl:"warn",who,id:c.f._id,t:`Costo por libra de la última parvada ${usd(c.costLb,4)}, ${fx(diffPct(c.costLb,h.costLb),0)}% arriba del promedio`});
-    if(!ok(c.C.liq)&&ok(c.liq))out.push({lvl:"info",who,id:c.f._id,t:`Falta registrar la liquidación real de Cargill (se usa ${c.liqSrc})`});
+    if(!c.liqReal&&ok(c.liq))out.push({lvl:"info",who,id:c.f._id,t:`Falta registrar la liquidación real de Cargill (se usa ${c.liqSrc})`});
+    if(c.LQ&&c.tab&&ok(c.LQ.usdLb.total)){const d=c.LQ.usdLb.total-c.tab.total;if(Math.abs(d)>0.0003)out.push({lvl:"warn",who,id:c.f._id,t:`Cargill pagó ${usd(c.LQ.usdLb.total,4)}/lb y la tabla de ${c.T.lab} da ${usd(c.tab.total,4)}/lb (${d>0?"+":""}${usd(d,4)})`})}
+    const cc=cashCheck(c);if(cc&&!cc.missing&&ok(cc.gotF)&&Math.abs(cc.gotF-cc.expF)>150)out.push({lvl:"warn",who,id:c.f._id,t:`El ingreso por parvadas de ${mLong(cc.m)} (${usd(cc.gotF,2)}) no cuadra con la liquidación (${usd(cc.expF,2)})`});
   });
   const ord={bad:0,warn:1,info:2,good:3};return out.sort((a,b)=>ord[a.lvl]-ord[b.lvl]);
 }
@@ -797,9 +809,9 @@ function drawPanelChart(farm){
   const opts={onClick:it=>goFlock(it.key),hl:S.sel};
   if(k==="margin"){
     barChart(box,cs.map(c=>({key:c.f._id,lab:"P"+c.f.num,v:c.liq,v2:c.costLb,c})),{...opts,fmt:v=>"$"+fx(v,3),aria:"Precio liquidado y costo por libra",zero:true,
-      tip:it=>tipBase(it.c)+`Precio: ${usd(it.c.liq,4)}/lb (${it.c.liqSrc})<br>Químicos Cargill: ${usd(it.c.habLb,4)}/lb<br>Costo: ${usd(it.c.costLb,4)}/lb<br>Margen: <b>${usd(it.c.marginLb,4)}/lb</b><br>Utilidad: ${usd(it.c.profit)}`});
+      tip:it=>tipBase(it.c)+`Precio: ${usd(it.c.liq,4)}/lb (${it.c.liqSrc})<br>Costo: ${usd(it.c.costLb,4)}/lb<br>Margen: <b>${usd(it.c.marginLb,4)}/lb</b><br>Utilidad: ${usd(it.c.profit)}`});
     lg.innerHTML=`<span><i class="band" style="background:var(--s1)"></i>Precio liquidado $/lb</span><span><i style="background:var(--ink)"></i>Costo operativo $/lb</span><span class="src">La distancia entre la barra y la raya es el margen por libra.</span>`;return}
-  const M={profit:{get:c=>c.profit,f:v=>usdk(v),lab:"Utilidad (liquidación − costo, químicos incluidos)",hb:true,zero:true},
+  const M={profit:{get:c=>c.profit,f:v=>usdk(v),lab:"Utilidad operativa (liquidación − costo)",hb:true,zero:true},
     wFinal:{get:c=>c.wFinal,f:v=>fx(v,2),lab:"Peso a cosecha (lb)",hb:true,zero:false},fcr:{get:c=>c.fcr,f:v=>fx(v,3),lab:"Conversión alimenticia",hb:false,zero:false},
     mort:{get:c=>c.mort,f:v=>fx(v,1)+"%",lab:"Mortalidad (%)",hb:false,zero:true},eef:{get:c=>c.eef,f:v=>fi(v),lab:"IEP (índice de eficiencia productiva)",hb:true,zero:false}}[k];
   const avg=mean(cs.map(M.get));
@@ -823,8 +835,6 @@ const IND=[
   {lab:"Pollos quedados",d:0,hb:false,get:c=>c.leftT},
   {sec:"Dinero"},
   {lab:"Precio liquidado ($/lb)",d:4,hb:true,get:c=>c.liq,usd:true},
-  {lab:"Químicos Cargill descontados ($)",d:0,hb:false,get:c=>c.hab,usd:true},
-  {lab:"Precio neto después de químicos ($/lb)",d:4,hb:true,get:c=>c.liqNet,usd:true},
   {lab:"Costo operativo ($/lb)",d:4,hb:false,get:c=>c.costLb,usd:true},
   {lab:"Margen ($/lb)",d:4,hb:true,get:c=>c.marginLb,usd:true},
   {lab:"Ingreso por pollo ($)",d:3,hb:true,get:c=>c.perBird,usd:true},
@@ -883,15 +893,13 @@ const YROWS=[
   {lab:"Ingreso por pollo",k:"perBird",d:3,usd:true,hb:true},
   {sec:"Resultado de las parvadas"},
   {lab:"Liquidación bruta (libras × precio)",k:"income",d:0,usd:true,hb:true},
-  {lab:"Químicos de habilitación descontados por Cargill",k:"hab",d:0,usd:true,hb:false},
-  {lab:"Crédito neto a cuenta (liquidación − químicos)",k:"netIncome",d:0,usd:true,hb:true,strong:true},
   {lab:"Costo operativo de parvadas",k:"cost",d:0,usd:true,hb:false},
   {lab:"Costo operativo por libra",k:"costLb",d:4,usd:true,hb:false},
   {lab:"Margen por libra",k:"marginLb",d:4,usd:true,hb:true,strong:true},
   {lab:"Utilidad operativa",k:"profitOp",d:0,usd:true,hb:true,strong:true},
   {sec:"Flujo de caja del año"},
   {lab:"Ingreso por libras recibido",y:"incomeLbs",d:0,usd:true,hb:true},
-  {lab:"Diferencia liquidación vs ingreso al banco",k:"diffBank",d:0,usd:true},
+  {lab:"Deducciones de Cargill (consumos netos + retención IR 2%)",k:"deduct",d:0,usd:true,hb:false},
   {lab:"IVA recuperado",y:"iva",d:0,usd:true},
   {lab:"Otros ingresos",y:"otherIncome",d:0,usd:true},
   {lab:"Ingreso total",y:"incomeTotal",d:0,usd:true,hb:true,strong:true},
@@ -910,7 +918,7 @@ function renderAnual(){
   const el=$("#v-anual");const farm=S.farm;const cycs=cyclesOf(farm);
   if(!cycs.length){el.innerHTML=emptyState();return}
   const A=cycs.map(c=>cycleAgg(farm,c));const full=lastFullCycle(farm);const iA=A.findIndex(a=>a.cyc===full);const a1=A[iA],a0=iA>0?A[iA-1]:null;
-  let html=`<div class="flock-head"><h2>Resultados anuales</h2><span class="muted">${esc(farmName(farm))} · año Cargill de 7 parvadas${FC(farm).note}</span></div>`;
+  let html=`<div class="flock-head"><h2>Resultados anuales</h2><span class="muted">${esc(farmName(farm))} · ciclo Cargill de 7 parvadas (junio a mayo)</span></div>`;
   html+=`<div class="grid3">
    <div class="card"><div class="card-h"><h3>Precio recibido vs costo por libra</h3></div><div class="chart" id="yPrice"></div><div class="legend"><span><i class="band" style="background:var(--s1)"></i>Precio liquidado</span><span><i style="background:var(--ink)"></i>Costo operativo</span></div></div>
    <div class="card"><div class="card-h"><h3>Utilidad del año</h3></div><div class="chart" id="yProfit"></div><div class="legend"><span><i class="band" style="background:var(--s1)"></i>Utilidad (flujo de caja)</span></div></div>
@@ -924,7 +932,7 @@ function renderAnual(){
     const ch=(ok(v1)&&ok(v0)&&r.hb!==undefined)?(r.pts||r.pct100?diffPts(r.pct100?v1*100:v1,r.pct100?v0*100:v0,r.hb):diffTag(v1,v0,r.hb)):"";
     return `<tr><td${r.strong?' style="font-weight:700"':""}>${r.lab}</td>${A.map(a=>`<td class="num ${a.cyc===full?"yr-now":""}"${r.strong?' style="font-weight:600"':""}>${yfmt(r,yv(a,r))}</td>`).join("")}<td class="num">${ch}</td></tr>`}).join("")}
   </tbody></table></div>
-  <p class="note">La liquidación es mayor que lo que entra al banco porque Cargill descuenta en el crédito final los químicos que usa en la limpieza y preparación de la granja al final de cada cosecha (habilitación). En Pío Pío salen de la fila “Consumo (Químicos)” de Costo x PV. Como ya están dentro del costo operativo, el margen y la utilidad los descuentan una sola vez. La fila “Diferencia liquidación vs ingreso al banco” compara libras × precio liquidado (hoja Graficos) con lo que entró al banco. El costo operativo de parvadas viene de las hojas de costo por parvada y puede diferir del gasto operativo del flujo.</p></div>`;
+  <p class="note">“Deducciones de Cargill” es la diferencia entre la liquidación (libras × precio) y lo que entró al banco por libras. Según la liquidación de la Parvada 30, son dos cosas: los <b>consumos</b> (químicos e insumos que Cargill aporta y debita, menos el reconocimiento que Cargill asume por alimento defectuoso) y la <b>retención de IR del 2%</b>, que es un anticipo del impuesto sobre la renta y se puede acreditar. El costo operativo de parvadas viene de las hojas de costo por parvada y puede diferir del gasto operativo del flujo.</p></div>`;
   html+=`<div class="banner">El detalle de costos por rubro está en la pestaña <b>Costos</b>, y los ejercicios de conversión, peso y mortalidad en <b>Apéndice</b>.</div>`;
   html+=simCard(farm,a1);
   el.innerHTML=html;
@@ -947,12 +955,13 @@ function costCard(farm,A){
   <p class="note">Costo promedio por parvada: <b>${usd(tot/lastC.n)}</b> · ${usd(tot/lastC.lbs,4)} por libra.</p></div>
   <div class="card"><h3>Costo por parvada por año</h3><div class="scroll"><table><thead><tr><th>Categoría</th>${withCats.map(x=>`<th>${cycLabel(x.a.cyc)}</th>`).join("")}<th>Cambio</th></tr></thead><tbody>
   ${keys.map(k=>{const vs=withCats.map(x=>ok(x.cats[k])?x.cats[k]/x.n:null);const l=vs[vs.length-1],p=vs.length>1?vs[vs.length-2]:null;return `<tr><td>${esc(k)}</td>${vs.map(v=>`<td class="num">${usd(v)}</td>`).join("")}<td class="num">${diffTag(l,p,false)}</td></tr>`}).join("")}
-  <tr class="total"><td>Total por parvada</td>${withCats.map(x=>`<td class="num">${usd(sum(Object.values(x.cats))/x.n)}</td>`).join("")}<td></td></tr></tbody></table></div></div>`;
+  <tr class="total"><td>Total por parvada</td>${withCats.map(x=>`<td class="num">${usd(sum(Object.values(x.cats))/x.n)}</td>`).join("")}<td></td></tr></tbody></table></div>
+  <p class="src">Detalle por categoría disponible desde la Parvada 7.</p></div>`;
 }
 function simCard(farm,a1){
   const ref=a1||{};
   if(!S.sim)S.sim={w:+(ref.wFinal||5.5).toFixed(2),fcr:+(ref.fcr||1.5).toFixed(3),alive:Math.round(ref.alive&&ref.n?ref.alive/ref.n:510000),cost:+(ref.costLb||0.045).toFixed(4)};
-  return `<div class="card"><div class="card-h"><h3>Simulador de liquidación · tabla Cargill 2025</h3><span class="src">Valores iniciales: promedio de ${cycLabel(ref.cyc)}</span></div>
+  return `<div class="card"><div class="card-h"><h3>Simulador de liquidación · tabla Cargill de septiembre 2025</h3><span class="src">Valores iniciales: promedio de ${cycLabel(ref.cyc)}</span></div>
   <div class="row">
    <label class="field">Aves vivas a cosecha<input type="number" id="sAlive" step="100" value="${S.sim.alive}"></label>
    <label class="field">Peso a cosecha (lb)<input type="number" id="sW" step="0.01" value="${S.sim.w}"></label>
@@ -1006,9 +1015,9 @@ function renderReporte(){
    <div class="card"><div class="card-h"><h3>Ganancia diaria</h3></div><div class="chart" id="cAdg"></div><div class="legend"><span><i class="band" style="background:var(--s1)"></i>Esta parvada</span><span><i style="background:var(--ink-2)"></i>Promedio histórico</span></div></div>
   </div>
   <div class="card"><div class="card-h"><h3>Reporte por semana</h3><button class="btn" id="csvBtn" hidden>Descargar para Excel</button></div>
-  <div class="scroll"><table><thead><tr><th>Semana</th><th>Día</th><th>Peso (lb)</th><th>Ganancia</th><th>Gan. diaria sem.</th><th>Gan. diaria acum.</th><th>Crecimiento ×</th><th>Peso vs hist.</th><th>Variación entre galeras</th><th>Mort. sem</th><th>Mort. acum</th><th>Mort. vs hist.</th><th>Muertes acum</th><th>Aves vivas</th><th>Conversión</th><th>Conv. vs hist.</th></tr></thead><tbody>
-  ${c.weeks.map(r=>`<tr class="click ${S.gWeek===r.n?"sel":""}" data-week="${r.n}"><td>${r.n?"Semana "+r.n:"Recepción"}</td><td class="num">${r.day}</td><td class="num">${fx(r.w,3)}</td><td class="num">${fx(r.gain,3)}</td><td class="num">${fx(r.adg,3)}</td><td class="num">${fx(r.adgCum,3)}</td><td class="num">${fx(r.ratio,2)}</td><td class="num">${ok(r.w)?diffTag(r.w,h.wk[r.n].w):"—"}</td><td class="num">${ok(r.cv)?fx(r.cv,1)+"%":"—"}</td><td class="num ${mortClass(r.mortW,true)}">${r.n?pct(r.mortW):""}</td><td class="num">${r.n?pct(r.mortCum):""}</td><td class="num">${r.n&&ok(r.mortCum)?diffPts(r.mortCum,h.wk[r.n].mortCum,false,""):""}</td><td class="num">${r.n?fi(r.deathsCum):""}</td><td class="num">${fi(r.alive)}</td><td class="num">${r.n?fx(r.fcr,3):""}</td><td class="num">${r.n&&ok(r.fcr)?diffTag(r.fcr,h.wk[r.n].fcr,false):""}</td></tr>`).join("")}
-  <tr class="total click ${S.gWeek==="h"?"sel":""}" data-week="h"><td>Cosecha</td><td class="num">${fx(c.age,1)}</td><td class="num">${fx(c.wFinal,3)}</td><td class="num">${ok(c.wFinal)&&ok(c.W0)?fx(c.wFinal-c.W0,3):"—"}</td><td></td><td class="num">${fx(c.adgT,3)}</td><td></td><td class="num">${c.closed?diffTag(c.wFinal,h.wFinal):"—"}</td><td></td><td></td><td class="num">${pct(c.closed?c.mort:null)}</td><td class="num">${c.closed?diffPts(c.mort,h.mort,false,""):""}</td><td class="num">${fi(c.closed?c.dead:null)}</td><td class="num">${fi(c.closed?c.alive:null)}</td><td class="num">${fx(c.closed?c.fcr:null,3)}</td><td class="num">${c.closed?diffTag(c.fcr,h.fcr,false):""}</td></tr>
+  <div class="scroll"><table><thead><tr><th>Semana</th><th>Día</th><th>Peso (lb)</th><th>Ganancia</th><th>Gan. diaria sem.</th><th>Gan. diaria acum.</th><th>Crecimiento ×</th><th>Peso vs hist.</th><th>Variación entre galeras</th><th>Mort. sem</th><th>Mort. acum</th><th>Mort. vs hist.</th><th>Muertes acum</th><th>Aves vivas</th><th>Alimento (qq)</th></tr></thead><tbody>
+  ${c.weeks.map(r=>`<tr class="click ${S.gWeek===r.n?"sel":""}" data-week="${r.n}"><td>${r.n?"Semana "+r.n:"Recepción"}</td><td class="num">${r.day}</td><td class="num">${fx(r.w,3)}</td><td class="num">${fx(r.gain,3)}</td><td class="num">${fx(r.adg,3)}</td><td class="num">${fx(r.adgCum,3)}</td><td class="num">${fx(r.ratio,2)}</td><td class="num">${ok(r.w)?diffTag(r.w,h.wk[r.n].w):"—"}</td><td class="num">${ok(r.cv)?fx(r.cv,1)+"%":"—"}</td><td class="num ${mortClass(r.mortW,true)}">${r.n?pct(r.mortW):""}</td><td class="num">${r.n?pct(r.mortCum):""}</td><td class="num">${r.n&&ok(r.mortCum)?diffPts(r.mortCum,h.wk[r.n].mortCum,false,""):""}</td><td class="num">${r.n?fi(r.deathsCum):""}</td><td class="num">${fi(r.alive)}</td><td class="num">${r.n?fx(r.feed,1):""}</td></tr>`).join("")}
+  <tr class="total click ${S.gWeek==="h"?"sel":""}" data-week="h"><td>Cosecha</td><td class="num">${fx(c.age,1)}</td><td class="num">${fx(c.wFinal,3)}</td><td class="num">${ok(c.wFinal)&&ok(c.W0)?fx(c.wFinal-c.W0,3):"—"}</td><td></td><td class="num">${fx(c.adgT,3)}</td><td></td><td class="num">${c.closed?diffTag(c.wFinal,h.wFinal):"—"}</td><td></td><td></td><td class="num">${pct(c.closed?c.mort:null)}</td><td class="num">${c.closed?diffPts(c.mort,h.mort,false,""):""}</td><td class="num">${fi(c.closed?c.dead:null)}</td><td class="num">${fi(c.closed?c.alive:null)}</td><td class="num">${fx(c.closed?c.feedQQ:null,0)}</td></tr>
   </tbody></table></div><p class="note">Toca una fila para ver el detalle por galera. Mortalidad vs histórico en puntos porcentuales.</p></div>
   ${galeraCard(c,h)}
   ${c.closed?closeCard(c,h):""}`;
@@ -1041,15 +1050,15 @@ function galeraCard(c,h){
     }
     body+=`<tr class="total"><td>Total / prom</td><td class="num">${fi(c.placedT)}</td><td class="num">${pct(W6.mortCum)}</td><td class="num">${fi(W6.deathsCum)}</td><td class="num">${fx(mean(f.hAge),2)}</td><td class="num">${fx(c.wFinal,2)}</td><td class="num">${fx(c.adgT,3)}</td><td class="num">${fi(c.leftT)}</td><td class="num">${pct(c.leftPct)}</td></tr></tbody></table>`;
   } else {
-    const r=c.weeks[n],prev=n?c.weeks[n-1]:null;
+    const r=c.weeks[n],prev=n?c.weeks[n-1]:null;const CN=n&&f.cull&&f.cull[n]&&vals(f.cull[n]).length>0;
     const ranks=r.wg.map((v,i)=>({v,i})).filter(o=>ok(o.v)).sort((a,b)=>b.v-a.v);const best=ranks.length?ranks[0].i:-1,worst=ranks.length?ranks[ranks.length-1].i:-1;
-    body=`<table><thead><tr><th>Galera</th><th>Peso (lb)</th><th>vs prom.</th><th>Ganancia</th><th>Gan. diaria</th><th>Posición</th>${n?`<th>Mort. sem</th><th>Mort. acum</th><th>Muertes acum</th><th>Aves vivas</th><th>Conversión</th>`:`<th>Aves recibidas</th>`}</tr></thead><tbody>`;
+    body=`<table><thead><tr><th>Galera</th><th>Peso (lb)</th><th>vs prom.</th><th>Ganancia</th><th>Gan. diaria</th><th>Posición</th>${n?`<th>Mort. sem</th>${CN?"<th>Descarte</th><th>Natural</th>":""}<th>Mort. acum</th><th>Muertes acum</th><th>Aves vivas</th><th>Alimento (qq)</th>`:`<th>Aves recibidas</th>`}</tr></thead><tbody>`;
     for(let g=0;g<G;g++){
       const v=r.wg[g];const pv=prev?prev.wg[g]:null;const gain=ok(v)&&ok(pv)?v-pv:null;const pl=f.placed[g];
       const mc=n?r.mg[g]:null,mp=n>1?c.weeks[n-1].mg[g]:(n===1?0:null);const mw=ok(mc)&&ok(mp)?mc-mp:null;const pos=ranks.findIndex(o=>o.i===g);
-      body+=`<tr><td>G${g+1} ${g===best?'<span class="pill good">Mejor</span>':g===worst?'<span class="pill warn">Rezagada</span>':""}</td><td class="num">${fx(v,3)}</td><td class="num">${ok(v)?diffTag(v,r.w):"—"}</td><td class="num">${fx(gain,3)}</td><td class="num">${ok(gain)?fx(gain/7,3):"—"}</td><td class="num">${pos>=0?(pos+1)+" de "+ranks.length:"—"}</td>${n?`<td class="num ${mortClass(mw,true)}">${pct(mw)}</td><td class="num ${ok(mc)&&ok(r.mortCum)&&mc>r.mortCum+1.5?"dn":""}">${pct(mc)}</td><td class="num">${fi(r.deadG[g])}</td><td class="num">${ok(pl)&&ok(r.deadG[g])?fi(pl-r.deadG[g]):"—"}</td><td class="num">${fx(f.fcrW[n][g],3)}</td>`:`<td class="num">${fi(pl)}</td>`}</tr>`;
+      body+=`<tr><td>G${g+1} ${g===best?'<span class="pill good">Mejor</span>':g===worst?'<span class="pill warn">Rezagada</span>':""}</td><td class="num">${fx(v,3)}</td><td class="num">${ok(v)?diffTag(v,r.w):"—"}</td><td class="num">${fx(gain,3)}</td><td class="num">${ok(gain)?fx(gain/7,3):"—"}</td><td class="num">${pos>=0?(pos+1)+" de "+ranks.length:"—"}</td>${n?`<td class="num ${mortClass(mw,true)}">${pct(mw)}</td>${CN?`<td class="num ${ok(f.cull[n][g])&&ok(pl)&&f.cull[n][g]/pl*100>1?"wn":""}">${fi(f.cull[n][g])}</td><td class="num">${fi(f.nat&&f.nat[n]?f.nat[n][g]:null)}</td>`:""}<td class="num ${ok(mc)&&ok(r.mortCum)&&mc>r.mortCum+1.5?"dn":""}">${pct(mc)}</td><td class="num">${fi(r.deadG[g])}</td><td class="num">${ok(pl)&&ok(r.deadG[g])?fi(pl-r.deadG[g]):"—"}</td><td class="num">${fx(f.f[n][g],1)}</td>`:`<td class="num">${fi(pl)}</td>`}</tr>`;
     }
-    body+=`<tr class="total"><td>Promedio / total</td><td class="num">${fx(r.w,3)}</td><td class="num">${ok(r.cv)?"Variación "+fx(r.cv,1)+"%":""}</td><td class="num">${fx(r.gain,3)}</td><td class="num">${fx(r.adg,3)}</td><td class="num">${ok(r.min)?fx(r.max-r.min,2)+" lb rango":""}</td>${n?`<td class="num">${pct(r.mortW)}</td><td class="num">${pct(r.mortCum)}</td><td class="num">${fi(r.deathsCum)}</td><td class="num">${fi(r.alive)}</td><td class="num">${fx(r.fcr,3)}</td>`:`<td class="num">${fi(c.placedT)}</td>`}</tr></tbody></table>`;
+    body+=`<tr class="total"><td>Promedio / total</td><td class="num">${fx(r.w,3)}</td><td class="num">${ok(r.cv)?"Variación "+fx(r.cv,1)+"%":""}</td><td class="num">${fx(r.gain,3)}</td><td class="num">${fx(r.adg,3)}</td><td class="num">${ok(r.min)?fx(r.max-r.min,2)+" lb rango":""}</td>${n?`<td class="num">${pct(r.mortW)}</td>${CN?`<td class="num">${fi(sum(f.cull[n]))}</td><td class="num">${fi(sum(f.nat&&f.nat[n]||[]))}</td>`:""}<td class="num">${pct(r.mortCum)}</td><td class="num">${fi(r.deathsCum)}</td><td class="num">${fi(r.alive)}</td><td class="num">${fx(r.feed,1)}</td>`:`<td class="num">${fi(c.placedT)}</td>`}</tr></tbody></table>`;
   }
   return `<div class="card" id="gCard"><div class="card-h"><h3>Detalle por galera</h3>${chips}</div><div class="scroll">${body}</div></div>`;
 }
@@ -1066,27 +1075,100 @@ function closeCard(c,h){
   </div></div>
   <div class="card"><h3>Liquidación Cargill</h3><div class="kv">
    ${k("Pago base",usd(c.pBase,4))}${k("Bono de conversión",usd(c.bConv,4))}${k("Bono por mejora",usd(c.bMejora,4))}${k("Bono por inversión",usd(c.bInv,4))}
-   ${k("Precio según tabla",usd(c.price,4))}${k("Precio liquidado",usd(c.liq,4)+(ok(c.C.liq)?"":" *"),"strong")}${k("Ingreso por pollo",usd(c.perBird,3))}
-   <div class="hr"></div>${k("Liquidación bruta",usd(c.income))}${k("Químicos de habilitación (Cargill)",ok(c.hab)?"−"+usd(c.hab):"—")}${k("Crédito neto a cuenta",usd(c.netIncome),"strong")}${k("Precio neto",usd(c.liqNet,4)+"/lb")}
-   <div class="hr"></div>${k("Costo operativo (incluye químicos)",usd(c.cost))}${k("Costo por libra",usd(c.costLb,4))}
+   ${k("Precio según tabla",usd(c.price,4))}${k("Precio liquidado",usd(c.liq,4)+(c.liqReal?"":" *"),"strong")}${k("Ingreso por pollo",usd(c.perBird,3))}
+   <div class="hr"></div>${k("Liquidación bruta",usd(c.income))}${k("Costo operativo",usd(c.cost))}${k("Costo por libra",usd(c.costLb,4))}
    ${k("Margen por libra",usd(c.marginLb,4),"strong")}${k("Utilidad operativa",usd(c.profit),"strong")}
-  </div>${ok(c.C.liq)?"":`<p class="src">* ${esc(c.liqSrc)}; registra la liquidación real en Captura → Cierre.</p>`}${c.habEst?`<p class="src">* Químicos estimados con el promedio que indicaste; corrígelos en Captura → Cierre cuando tengas el dato de Cargill.</p>`:""}
-  ${c.tab&&ok(c.fcr)?`<p class="src">Con la tabla 2025 este cierre (peso ${fx(c.wFinal,2)}, conversión ${fx(c.fcr,3)}) pagaría ${usd(c.tab.total,4)}/lb.</p>`:""}</div>
+  </div>${c.liqReal?(c.LQ?`<p class="src">Precios calculados del documento de liquidación en córdobas.</p>`:""):`<p class="src">* ${esc(c.liqSrc)}; registra la liquidación real en Captura → Cierre.</p>`}
+  ${c.tab&&ok(c.fcr)?`<p class="src">Con la tabla de ${esc(c.T.lab)} este cierre (peso ${fx(c.wFinal,2)}, conversión ${fx(c.fcr,3)}) pagaría ${usd(c.tab.total,4)}/lb.</p>`:""}</div>
   <div class="card"><h3>Costo de la parvada</h3>${costs.length?`<div class="hbar">${costs.slice(0,10).map(([n,v])=>`<span>${esc(n)}</span><span class="bar"><i style="width:${v/mx*100}%"></i></span><b>${usd(v)}</b>`).join("")}</div><p class="note">Total ${usd(c.cost)} · ${usd(c.costLb,4)} por libra${ok(h.costLb)?` (histórico ${usd(h.costLb,4)})`:""}.</p>`:`<p class="note">${ok(c.cost)?`Costo total ${usd(c.cost)} (${usd(c.costLb,4)}/lb). Sin detalle por categoría.`:"Sin costo registrado."}</p>`}</div>
-  </div>`;
+  </div>${liqCard(c)}${galeraLbsCard(c)}`;
+}
+function nextMonth(m){const [y,mo]=m.split("-").map(Number);return mo===12?`${y+1}-01`:`${y}-${String(mo+1).padStart(2,"0")}`}
+function depMonth(c,C){const q=c.LQ;if(!q||!q.date)return null;const m=q.date.slice(0,7);const d=C.months.find(x=>x.month===m);
+  if(d&&(C.val(d,C.K.incP)||0)>0)return m;const n=nextMonth(m);const d2=C.months.find(x=>x.month===n);return d2&&(C.val(d2,C.K.incP)||0)>0?n:m}
+function cashCheck(c){
+  const q=c.LQ;if(!q||!q.date)return null;const C=cashData(c.f.farm);const m=depMonth(c,C);const d=C.months.find(x=>x.month===m);
+  if(!d)return {m,missing:true};
+  const same=farmFlocks(c.f.farm).map(C_).filter(x=>x.LQ&&x.LQ.date&&ok(x.LQ.depFlock)&&depMonth(x,C)===m);
+  return {m,same,expF:sum(same.map(x=>x.LQ.depFlock/x.LQ.tcB)),expI:sum(same.map(x=>x.LQ.iva/x.LQ.tcB)),gotF:C.val(d,C.K.incP),gotI:C.val(d,C.K.iva)};
+}
+function okPill(d,tol){if(!ok(d))return "";return Math.abs(d)<=tol?'<span class="pill good">Cuadra</span>':'<span class="pill warn">Revisar</span>'}
+function liqCard(c){
+  const q=c.LQ;if(!q)return "";const L=q.L,tc=q.tc,t=c.tab,lbs=q.lbs;
+  const T={base:t&&t.base,conv:t&&t.bfcr,inv:t&&t.inv,mejora:t&&t.mejora,total:t&&t.total};
+  const NM={base:"Pago base",conv:"Bono por conversión",inv:"Bono por inversión",mejora:"Bono por mejora",total:"Pago total"};
+  const r1=["base","conv","inv","mejora","total"].map(k=>{const u=q.usdLb[k],d=ok(u)&&ok(T[k])?u-T[k]:null;const st=k==="total"?' style="font-weight:700"':"";
+    return `<tr${k==="total"?' class="total"':""}><td${st}>${NM[k]}</td><td class="num"${st}>${fx(L[k],2)}</td><td class="num">${ok(L[k])&&lbs?fx(L[k]/lbs,3):"—"}</td><td class="num"${st}>${usd(u,4)}</td><td class="num">${usd(T[k],4)}</td><td class="num">${ok(d)?(Math.abs(d)<0.00005?"0.0000":(d>0?"+":"")+fx(d,4)):"—"} ${okPill(d,0.0002)}</td></tr>`}).join("");
+  const row=(lab,v,cls="",note="")=>`<tr class="${cls}"><td>${lab}</td><td class="num">${ok(v)?fx(v,2):"—"}</td><td class="num">${ok(v)?usd(v/tc,2):"—"}</td><td class="l src" style="white-space:normal;min-width:190px">${note}</td></tr>`;
+  const cc=cashCheck(c);
+  let bank="";
+  if(cc&&!cc.missing){const dF=ok(cc.gotF)?cc.gotF-cc.expF:null,dI=ok(cc.gotI)?cc.gotI-cc.expI:null;
+    bank=`<div class="kv">
+     <span>Esperado por parvada${cc.same.length>1?`s (${cc.same.map(x=>"P"+x.f.num).join(", ")})`:""}</span><b>${usd(cc.expF,2)}</b>
+     <span>Flujo de ${mLong(cc.m)}: ingresos por parvadas</span><b>${usd(cc.gotF,2)}</b>
+     <span>Diferencia</span><b>${ok(dF)?usd(Math.abs(dF)<0.005?0:dF,2):"—"} ${okPill(dF,50)}</b>
+     <div class="hr"></div>
+     <span>IVA esperado</span><b>${usd(cc.expI,2)}</b>
+     <span>Flujo de ${mLong(cc.m)}: IVA</span><b>${usd(cc.gotI,2)}</b>
+     <span>Diferencia</span><b>${ok(dI)?usd(Math.abs(dI)<0.005?0:dI,2):"—"} ${okPill(dI,50)}</b></div>`}
+  else if(cc&&cc.missing)bank=`<p class="note">Todavía no hay flujo mensual de ${mLong(cc.m)} para comparar el depósito.</p>`;
+  else bank=`<p class="note">Escribe la fecha de liquidación para compararla con el flujo mensual.</p>`;
+  const hb=(o,unit)=>{const e=Object.entries(o||{}).filter(([,v])=>ok(v));if(!e.length)return "";const mx=Math.max(...e.map(x=>x[1])),tot=sum(e.map(x=>x[1]));
+    return `<div class="hbar">${e.map(([k,v])=>`<span>${esc(k)}</span><span class="bar"><i style="width:${v/mx*100}%"></i></span><b>${fi(v)}${unit} · ${fx(v/tot*100,0)}%</b>`).join("")}</div>`};
+  const chicks=hb(L.chicks,""),feed=hb(L.feed," lb");
+  return `<div class="card"><div class="card-h"><h3>Liquidación Cargill en córdobas${L.doc?` · ${esc(L.doc)}`:""}</h3><span class="src">${q.date?"Liquidada el "+fd(q.date)+" · ":""}tipo de cambio ${fx(tc,4)} · ${fi(lbs)} lb</span></div>
+  <div class="scroll"><table><thead><tr><th>Concepto</th><th>C$</th><th>C$ por lb</th><th>US$ por lb</th><th>Tabla ${c.T?esc(c.T.id):""}</th><th>Diferencia</th></tr></thead><tbody>${r1}</tbody></table></div>
+  <p class="note">${t?`Tabla de pago de <b>${esc(c.T.lab)}</b>. Con el peso ${fx(c.tabW,3)} lb y la conversión ${fx(c.tabF,3)} de la liquidación, paga base ${usd(t.base,4)} (rango de peso) y bono de conversión ${usd(t.bfcr,4)} (conversión ${fx(t.fcrKey,2)}).`:`No tengo la tabla de pago vigente para esta parvada (anterior a noviembre 2022); solo se muestran los montos.`} Tipo de cambio usado por Cargill: ${fx(tc,4)}.</p>${prodCmp(c)}</div>
+  <div class="grid2 eq">
+   <div class="card"><h3>De la liquidación al banco</h3><div class="scroll"><table><thead><tr><th>Concepto</th><th>C$</th><th>US$</th><th class="l">Qué es</th></tr></thead><tbody>
+    ${row("Pago total",L.total,"","Libras × precio")}
+    ${L.consItems&&Object.keys(L.consItems).length>1?Object.entries(L.consItems).map(([k,v])=>row("(−) "+esc(k),-v,"lq-sub",k==="Cascarilla (cama)"?"Cama para las galeras":k==="Diferencial cambiario"?"Ajuste por tipo de cambio":"Insumos que Cargill aporta y debita")).join(""):row("(−) Químicos y consumos",ok(q.quim)?-q.quim:null,"lq-sub","Insumos que Cargill aporta y debita")}
+    ${q.recon?row("(+) Reconocimiento",q.recon,"lq-sub","Cargill asume este costo por alimento defectuoso que no dio la nutrición esperada"):""}
+    ${row("(−) Consumos netos",ok(q.cons)?-q.cons:null,"","")}
+    ${row("Total antes de IVA",q.preIva,"total","")}
+    ${row("(+) IVA 15%",q.iva,"","Se paga aparte; lo debes declarar")}
+    ${row("Pago neto",q.neto,"total","Lo que dice el documento")}
+    ${q.ir===0?row("Retención IR 2%",0,"","En esta parvada no hubo retención (según el banco)"):row("(−) Retención IR 2%",ok(q.ir)?-q.ir:null,"",ok(L.ir)?"Anticipo de IR; se acredita":"Calculada: 2% del total antes de IVA. Anticipo de IR; se acredita")}
+    ${row("Depósito esperado",q.dep,"total",`Por la parvada ${usd(q.depFlock/q.tcB,2)} + IVA ${usd(q.iva/q.tcB,2)}${q.tcB!==tc?` (al cambio del banco ${fx(q.tcB,4)})`:""}`)}
+   </tbody></table></div></div>
+   <div class="card"><h3>Comparación con el banco</h3>${bank}
+    <p class="note">Lo que no llega al banco por libras son los consumos netos (${usd(q.cons/tc,2)})${q.ir?` y la retención de IR (${usd(q.ir/tc,2)})`:""}: ${usd((q.cons+(q.ir||0))/tc,2)} en total, ${usd((q.cons+(q.ir||0))/tc/lbs,4)} por libra.</p></div>
+  </div>
+  ${chicks||feed?`<div class="grid2 eq">${chicks?`<div class="card"><h3>Origen del pollito</h3>${chicks}</div>`:""}${feed?`<div class="card"><h3>Alimento por fase</h3>${feed}<p class="note">${ok(c.feedQQ)?`Total ${fi(c.feedQQ)} qq · ${fx(c.feedBird,2)} lb por ave`:""}</p></div>`:""}</div>`:""}`;
+}
+function prodCmp(c){
+  const p=c.LQ&&c.LQ.prod;if(!p||!ok(p.lbs))return "";
+  const R=[["Libras",p.lbs,c.lbs,0],["Aves entregadas",p.alive,c.alive,0],["Peso promedio",p.w,c.wFinal,3],["Conversión",p.fcr,c.fcr,3],["Mortalidad %",p.mortPct,c.mort,2],["Edad",p.age,c.age,2],["IEP",p.iep,c.eef,0]];
+  const bad=R.filter(([,a,b,d])=>ok(a)&&ok(b)&&Math.abs(a-b)>Math.max(Math.pow(10,-d)*1.5,Math.abs(a)*0.002));
+  return `<details><summary class="src">Datos de producción según Cargill${bad.length?` · <span class="wn">${bad.length} difieren de tu registro</span>`:" · coinciden con tu registro"}</summary><div class="scroll"><table><thead><tr><th>Dato</th><th>Cargill</th><th>Tu registro</th></tr></thead><tbody>${R.map(([l,a,b,d])=>`<tr><td>${l}</td><td class="num">${d?fx(a,d):fi(a)}</td><td class="num ${bad.some(x=>x[0]===l)?"wn":""}">${d?fx(b,d):fi(b)}</td></tr>`).join("")}</tbody></table></div></details>`;
+}
+function galeraLbsCard(c){
+  const f=c.f,L=c.lbsG;if(!vals(L).length)return "";const W=c.weeks[WEEKS-1];
+  const rows=[];for(let g=0;g<G;g++){const pl=f.placed[g],lm=[...c.weeks].reverse().find(r=>ok(r.mg[g]));const dead=lm?lm.deadG[g]:null;const left=ok(f.left[g])?+f.left[g]:0;
+    const out=ok(pl)&&ok(dead)?pl-dead-left:null;const lb=L[g];const lw=[...c.weeks].reverse().find(r=>ok(r.wg[g]));const samp=first(f.hWt[g],lw?lw.wg[g]:null);
+    const real=ok(lb)&&out?lb/out:null;rows.push({g,pl,dead,left,out,lb,per:ok(lb)&&pl?lb/pl:null,real,samp,d:ok(real)&&ok(samp)?samp-real:null})}
+  const rk=rows.filter(r=>ok(r.per)).sort((a,b)=>b.per-a.per);const best=rk.length?rk[0].g:-1,worst=rk.length?rk[rk.length-1].g:-1;
+  const T={pl:sum(rows.map(r=>r.pl)),dead:sum(rows.map(r=>r.dead)),left:sum(rows.map(r=>r.left)),out:sum(rows.map(r=>r.out)),lb:sum(rows.map(r=>r.lb))};
+  const mx=Math.max(...rows.map(r=>r.per||0));
+  return `<div class="card"><div class="card-h"><h3>Libras reales por galera</h3><span class="src">De la liquidación Cargill</span></div>
+  <div class="scroll"><table><thead><tr><th>Galera</th><th>Aves recibidas</th><th>Muertas (est.)</th><th>Quedados</th><th>Entregadas (est.)</th><th>Libras entregadas</th><th>Lb por pollito recibido</th><th>Peso real por ave</th><th>Peso del muestreo</th><th>Muestreo − real</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td>G${r.g+1} ${r.g===best?'<span class="pill good">Mejor</span>':r.g===worst?'<span class="pill warn">Más baja</span>':""}</td><td class="num">${fi(r.pl)}</td><td class="num">${fi(r.dead)}</td><td class="num">${fi(r.left)}</td><td class="num">${fi(r.out)}</td><td class="num">${fx(r.lb,0)}</td><td class="num"><b>${fx(r.per,3)}</b></td><td class="num">${fx(r.real,3)}</td><td class="num">${fx(r.samp,3)}</td><td class="num ${ok(r.d)&&Math.abs(r.d)>0.15?"wn":""}">${ok(r.d)?(r.d>=0?"+":"")+fx(r.d,3):"—"}</td></tr>`).join("")}
+  <tr class="total"><td>Total</td><td class="num">${fi(T.pl)}</td><td class="num">${fi(T.dead)}</td><td class="num">${fi(T.left)}</td><td class="num">${fi(T.out)}</td><td class="num">${fx(T.lb,0)}</td><td class="num">${fx(T.pl?T.lb/T.pl:null,3)}</td><td class="num">${fx(T.out?T.lb/T.out:null,3)}</td><td class="num">${fx(c.wFinal,3)}</td><td></td></tr></tbody></table></div>
+  <p class="note">“Lb por pollito recibido” junta peso y mortalidad en un solo número: es lo que produjo cada galera por cada pollito que entró. Las aves entregadas por galera son un estimado (recibidas − muertas − quedados), porque la liquidación solo trae libras por galera${ok(c.alive)&&ok(T.out)?`; el total estimado ${fi(T.out)} vs ${fi(c.alive)} de Cargill`:""}. Si el muestreo pesa más que el peso real, la muestra sobreestima esa galera.</p></div>`;
 }
 function exportFlock(c,h){
   const f=c.f;const L=[];const q=v=>ok(v)?String(+(+v).toFixed(4)):"";
   L.push(["Granja",farmName(f.farm)],["Parvada",f.num],["Ciclo",cycLabel(f.cycle)],["Inicio",f.start],["Cosecha",f.harvest],[]);
-  L.push(["Semana","Día","Peso prom lb","Ganancia lb","Gan diaria sem","Gan diaria acum","Crecimiento x","Peso histórico","Variación galeras %","Mort sem %","Mort acum %","Mort histórica %","Muertes acum","Aves vivas","Conversión"]);
-  c.weeks.forEach(r=>L.push([r.n?"Semana "+r.n:"Recepción",r.day,q(r.w),q(r.gain),q(r.adg),q(r.adgCum),q(r.ratio),q(h.wk[r.n].w),q(r.cv),q(r.mortW),q(r.mortCum),q(h.wk[r.n].mortCum),q(r.deathsCum),q(r.alive),q(r.fcr)]));
+  L.push(["Semana","Día","Peso prom lb","Ganancia lb","Gan diaria sem","Gan diaria acum","Crecimiento x","Peso histórico","Variación galeras %","Mort sem %","Mort acum %","Mort histórica %","Muertes acum","Aves vivas","Alimento qq"]);
+  c.weeks.forEach(r=>L.push([r.n?"Semana "+r.n:"Recepción",r.day,q(r.w),q(r.gain),q(r.adg),q(r.adgCum),q(r.ratio),q(h.wk[r.n].w),q(r.cv),q(r.mortW),q(r.mortCum),q(h.wk[r.n].mortCum),q(r.deathsCum),q(r.alive),q(r.feed)]));
   L.push([]);L.push(["Galera","Aves recibidas",...c.weeks.map(r=>r.n?"Peso S"+r.n:"Peso recepción"),...c.weeks.slice(1).map(r=>"Mort acum S"+r.n),"Edad cosecha","Quedados"]);
   for(let g=0;g<G;g++)L.push(["G"+(g+1),q(f.placed[g]),...c.weeks.map(r=>q(r.wg[g])),...c.weeks.slice(1).map(r=>q(r.mg[g])),q(f.hAge[g]),q(f.left[g])]);
   L.push([],["Cierre"],["Aves recibidas",q(c.birds)],["Aves muertas",q(c.dead)],["Mortalidad %",q(c.mort)],["Aves vivas",q(c.alive)],["Días",q(c.age)],["Peso cosecha",q(c.wFinal)],["Libras",q(c.lbs)],["FCR",q(c.fcr)],["IEP",q(c.eef)],["Precio liquidado $/lb",q(c.liq)],["Liquidación bruta $",q(c.income)],["Costo $",q(c.cost)],["Costo $/lb",q(c.costLb)],["Margen $/lb",q(c.marginLb)],["Utilidad $",q(c.profit)]);
+  if(c.LQ){const Q=c.LQ;L.push([],["Liquidación en córdobas"],["Documento",Q.L.doc||""],["Fecha",Q.date||""],["Tipo de cambio",q(Q.tc)],["Pago base C$",q(Q.L.base)],["Bono conversión C$",q(Q.L.conv)],["Bono inversión C$",q(Q.L.inv)],["Bono mejora C$",q(Q.L.mejora)],["Pago total C$",q(Q.L.total)],["Químicos y consumos C$",q(Q.quim)],["Reconocimiento C$",q(Q.recon)],["Consumos netos C$",q(Q.cons)],["Total antes de IVA C$",q(Q.preIva)],["IVA C$",q(Q.iva)],["Pago neto C$",q(Q.neto)],["Retención IR 2% C$",q(Q.ir)],["Depósito esperado C$",q(Q.dep)])}
+  if(vals(c.lbsG).length){L.push([],["Galera","Libras entregadas","Lb por pollito recibido"]);for(let g=0;g<G;g++)L.push(["G"+(g+1),q(c.lbsG[g]),q(ok(c.lbsG[g])&&ok(f.placed[g])?c.lbsG[g]/f.placed[g]:null)])}
   const csv="﻿"+L.map(r=>r.map(x=>{x=String(x??"");return /[,"\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x}).join(",")).join("\r\n");
   S.dl.save({filename:`${farmName(f.farm)} - Parvada ${f.num}.csv`,data:csv}).then(()=>toast("Archivo listo")).catch(e=>{if(e&&e.code!=="declined")toast("No se pudo descargar el archivo")});
 }
-
 
 /* ---------- REPORTE SEMANAL (todas las parvadas, semana por semana) ---------- */
 const WMET={w:{lab:"Peso (lb)",d:3,hb:true,get:r=>r.w},adg:{lab:"Ganancia diaria de la semana (lb/día)",d:3,hb:true,get:r=>r.adg},adgCum:{lab:"Ganancia diaria acumulada (lb/día)",d:3,hb:true,get:r=>r.adgCum},
@@ -1219,7 +1301,7 @@ function renderCostos(){
     const yc=yrs.map(y=>{const cs=all.filter(c=>c.cycle===y&&c.C.costs);const o={};cs.forEach(c=>Object.entries(c.C.costs).forEach(([k,v])=>{o[k]=(o[k]||0)+v}));return {y,n:cs.length,o}});
     html+=`<div class="card"><h3>Promedio por parvada por año</h3><div class="scroll"><table><thead><tr><th>Rubro</th>${yc.map(x=>`<th>${cycLabel(x.y)}<br><span style="font-weight:500">${x.n} parvadas</span></th>`).join("")}<th>Último vs anterior</th></tr></thead><tbody>
     ${keys.map(k=>{const vs=yc.map(x=>ok(x.o[k])?x.o[k]/x.n:null);return `<tr><td>${esc(k)}</td>${vs.map(v=>`<td class="num">${usd(v)}</td>`).join("")}<td class="num">${vs.length>1?diffTag(vs[vs.length-1],vs[vs.length-2],false):""}</td></tr>`}).join("")}
-    <tr class="total"><td>Total por parvada</td>${yc.map(x=>`<td class="num">${usd(sum(Object.values(x.o))/x.n)}</td>`).join("")}<td></td></tr></tbody></table></div></div>`;
+    <tr class="total"><td>Total por parvada</td>${yc.map(x=>`<td class="num">${usd(sum(Object.values(x.o))/x.n)}</td>`).join("")}<td></td></tr></tbody></table></div><p class="src">Detalle por rubro disponible desde la Parvada 7.</p></div>`;
   }
   el.innerHTML=html;
   const items=sel.map(c=>({key:c.f._id,lab:"P"+c.f.num,c}));
@@ -1229,6 +1311,218 @@ function renderCostos(){
   el.querySelectorAll("[data-go]").forEach(a=>a.addEventListener("click",e=>{e.preventDefault();goFlock(a.dataset.go)}));
 }
 
+/* ---------- LIQUIDACIONES CARGILL (todas las parvadas) ---------- */
+function renderLiquidaciones(){
+  const el=$("#v-liquidaciones");const farm=S.farm;const cs=farmFlocks(farm).map(C_).filter(c=>c.LQ);
+  if(!cs.length){el.innerHTML=`<div class="empty"><h2>Aún no hay liquidaciones en córdobas</h2><p>Regístralas en <b>Captura → Cierre y liquidación</b>.</p></div>`;return}
+  const Cd=cashData(farm);
+  const R=cs.map(c=>{const q=c.LQ,u=x=>ok(x)?x/q.tc:null;const cc=cashCheck(c);const d=c.tab&&ok(q.usdLb.total)?q.usdLb.total-c.tab.total:null;
+    const bankD=cc&&!cc.missing&&ok(cc.gotF)?cc.gotF-cc.expF:null;
+    return {c,q,usd:u(q.L.total),lb:q.usdLb.total,tabD:d,cons:u(q.cons),recon:u(q.recon),ir:u(q.ir),ded:u((q.cons||0)+(q.ir||0)),dep:ok(q.depFlock)?q.depFlock/q.tcB:null,cc,bankD,
+      quim:u(q.quim),casc:q.L.consItems&&q.L.consItems["Cascarilla (cama)"]?u(q.L.consItems["Cascarilla (cama)"]):0,consLb:ok(q.cons)?q.cons/q.tc/q.lbs:null}});
+  const tot=k=>sum(R.map(r=>r[k]));const tabOk=R.filter(r=>ok(r.tabD));const nOk=tabOk.filter(r=>Math.abs(r.tabD)<=0.0002).length;
+  const bankOk=R.filter(r=>ok(r.bankD));const nBank=bankOk.filter(r=>Math.abs(r.bankD)<=150).length;
+  const pill=(v,tol)=>!ok(v)?'<span class="muted">—</span>':Math.abs(v)<=tol?'<span class="pill good">Cuadra</span>':`<span class="pill warn">${v>0?"+":""}${fx(v,v<1?4:0)}</span>`;
+  const byC={};R.forEach(r=>{const k=r.c.cycle;(byC[k]=byC[k]||[]).push(r)});
+  let html=`<div class="flock-head"><h2>Liquidaciones Cargill</h2><span class="muted">${esc(farmName(farm))} · ${R.length} liquidaciones en córdobas</span></div>
+  <div class="kpis">
+   ${kpi("Liquidado en total",usdk(tot("usd")),"",`${R.length} parvadas · ${lbk(sum(R.map(r=>r.q.lbs)))} lb`)}
+   ${kpi("Pagadas según tabla",`${nOk}<small> de ${tabOk.length}</small>`,"",tabOk.length-nOk?`${tabOk.length-nOk} para revisar`:"todas cuadran")}
+   ${kpi("Depósitos que cuadran con el banco",`${nBank}<small> de ${bankOk.length}</small>`,"",bankOk.length-nBank?`${bankOk.length-nBank} con diferencia`:"todos cuadran")}
+   ${kpi("Descontado por Cargill",usdk(tot("ded")),"",`consumos ${usdk(tot("cons"))} · IR ${usdk(tot("ir"))}`)}
+  </div>
+  <div class="grid2 eq">
+   <div class="card"><h3>Precio liquidado por parvada (US$/lb)</h3><div class="chart" id="lqP"></div><div class="legend"><span><i class="band" style="background:var(--s1)"></i>Pagado</span><span><i style="background:var(--ink)"></i>Según tabla</span></div></div>
+   <div class="card"><h3>Consumos descontados por parvada (US$)</h3><div class="chart" id="lqC"></div><div class="legend"><span><i class="band" style="background:var(--s1)"></i>Consumos netos</span><span class="src">Desde la P1 hasta la P3 incluían cascarilla.</span></div></div>
+  </div>
+  <div class="card"><div class="card-h"><h3>Todas las liquidaciones</h3><span class="src">US$ al tipo de cambio de Cargill · toca una fila para abrir la parvada</span></div>
+  <div class="scroll"><table><thead><tr><th>Parvada</th><th>Liquidada</th><th>Tabla</th><th>Libras</th><th>Pago total C$</th><th>US$/lb</th><th>vs tabla</th><th>Consumos US$</th><th>Reconocimiento US$</th><th>IR 2% US$</th><th>Por la parvada al banco</th><th>Banco</th></tr></thead><tbody>
+  ${Object.keys(byC).sort((a,b)=>b-a).map(k=>{const rs=byC[k].slice().reverse();return `<tr><td class="sec" colspan="12">${cycLabel(+k)} (${cycYears(+k)})</td></tr>`+rs.map(r=>`<tr class="click" data-id="${r.c.f._id}"><td>${flockName(r.c.f)}</td><td>${fdShort(r.q.date)}</td><td>${r.c.T?esc(r.c.T.id):"—"}</td><td class="num">${fi(r.q.lbs)}</td><td class="num">${fx(r.q.L.total,0)}</td><td class="num">${fx(r.lb,4)}</td><td>${pill(r.tabD,0.0002)}</td><td class="num">${fx(r.cons,0)}</td><td class="num">${r.recon?fx(r.recon,0):"—"}</td><td class="num">${r.q.ir===0?'<span class="muted">no hubo</span>':fx(r.ir,0)}</td><td class="num">${fx(r.dep,0)}</td><td>${r.cc&&r.cc.missing?'<span class="muted">sin flujo</span>':pill(r.bankD,150)}</td></tr>`).join("")+
+    `<tr class="total"><td>Total ${cycLabel(+k)}</td><td></td><td></td><td class="num">${fi(sum(rs.map(r=>r.q.lbs)))}</td><td class="num">${fx(sum(rs.map(r=>r.q.L.total)),0)}</td><td class="num">${fx(sum(rs.map(r=>r.usd))/sum(rs.map(r=>r.q.lbs)),4)}</td><td></td><td class="num">${fx(sum(rs.map(r=>r.cons)),0)}</td><td class="num">${fx(sum(rs.map(r=>r.recon)),0)}</td><td class="num">${fx(sum(rs.map(r=>r.ir)),0)}</td><td class="num">${fx(sum(rs.map(r=>r.dep)),0)}</td><td></td></tr>`}).join("")}
+  </tbody></table></div>
+  <p class="note">“vs tabla” compara el pago por libra con la tabla vigente cuando se colocó la parvada (${PAY_T.map(t=>esc(t.lab)).join("; ")}). “Banco” compara lo que debía entrar por la parvada con la fila “Ingresos por parvadas” del flujo del mes (o del mes siguiente si el depósito cayó después).</p></div>
+  ${mismatchCard(cs)}
+  ${galeraRank(cs)}
+  ${hatchCard(cs)}`;
+  el.innerHTML=html;
+  const it=R.map(r=>({key:r.c.f._id,lab:"P"+r.c.f.num,r}));
+  barChart($("#lqP"),it.map(i=>({...i,v:i.r.lb,v2:i.r.c.tab?i.r.c.tab.total:null})),{fmt:v=>"$"+fx(v,3),aria:"Precio por libra",zero:false,onClick:x=>goFlock(x.key),
+    tip:x=>`<b>${flockName(x.r.c.f)}</b><br>Pagado: ${usd(x.r.lb,4)}/lb<br>Tabla ${x.r.c.T?esc(x.r.c.T.id):"—"}: ${usd(x.v2,4)}/lb<br>Peso ${fx(x.r.c.tabW,3)} · conversión ${fx(x.r.c.tabF,3)}`});
+  barChart($("#lqC"),it.map(i=>({...i,v:i.r.cons})),{fmt:usdk,aria:"Consumos por parvada",zero:true,avg:mean(it.map(i=>i.r.cons)),onClick:x=>goFlock(x.key),
+    tip:x=>`<b>${flockName(x.r.c.f)}</b><br>Consumos netos: ${usd(x.v)}<br>${usd(x.r.consLb,4)} por libra${x.r.recon?`<br>Reconocimiento: ${usd(x.r.recon)}`:""}${x.r.casc?`<br>Incluye cascarilla: ${usd(x.r.casc)}`:""}`});
+  el.querySelectorAll("tr[data-id],.alert[data-id]").forEach(tr=>tr.addEventListener("click",()=>goFlock(tr.dataset.id)));
+}
+function mismatchCard(cs){
+  const out=[];cs.forEach(c=>{const p=c.LQ.prod,L=c.LQ.L,f=c.f,m=[];
+    if(L.place&&f.start&&Math.abs(days(L.place,f.start))>3)m.push(`fecha de inicio ${fd(f.start)} y Cargill dice colocación ${fd(L.place)}`);
+    const pl=sum(f.placed);if(ok(p.birds)&&ok(pl)&&Math.abs(pl-p.birds)>p.birds*0.02)m.push(`aves recibidas por galera suman ${fi(pl)} y Cargill dice ${fi(p.birds)}`);
+    if(ok(p.lbs)&&ok(c.C.lbs)&&Math.abs(p.lbs-c.C.lbs)>p.lbs*0.002)m.push(`libras ${fi(c.C.lbs)} y Cargill ${fi(p.lbs)}`);
+    if(ok(p.alive)&&ok(c.C.alive)&&Math.abs(p.alive-c.C.alive)>p.alive*0.005)m.push(`aves vivas ${fi(c.C.alive)} y Cargill ${fi(p.alive)}`);
+    if(m.length)out.push({c,m})});
+  if(!out.length)return "";
+  return `<div class="card"><h3>Datos de tu registro que no coinciden con Cargill</h3><p class="note">Vienen del Excel o de la captura. Conviene corregirlos en el Excel para que la mortalidad y los pesos por galera salgan bien.</p>
+  <div class="alerts">${out.map(o=>`<div class="alert warn" data-id="${o.c.f._id}" role="button" tabindex="0"><span class="dot"></span><div class="txt"><span class="lvl">Revisar</span> · ${esc(o.m.join("; "))}</div><span class="who">${flockName(o.c.f)}</span></div>`).join("")}</div></div>`;
+}
+function galeraRank(cs){
+  const w=cs.filter(c=>vals(c.lbsG).length===G&&vals(c.f.placed).length===G&&Math.abs(sum(c.f.placed)-(c.LQ.prod.birds||sum(c.f.placed)))<=sum(c.f.placed)*0.02);if(w.length<2)return "";
+  const rows=[];for(let g=0;g<G;g++){const rel=w.map(c=>{const per=c.lbsG[g]/c.f.placed[g],avg=sum(c.lbsG)/sum(c.f.placed);return (per-avg)/avg*100});
+    rows.push({g,per:mean(w.map(c=>c.lbsG[g]/c.f.placed[g])),rel:mean(rel),beat:rel.filter(x=>x>0).length,last:rel[rel.length-1]})}
+  const s=rows.slice().sort((a,b)=>b.rel-a.rel);
+  return `<div class="card"><h3>Galeras según libras reales por pollito recibido</h3><p class="note">Con las libras que Cargill pesó por galera en ${w.length} liquidaciones. Cada galera se compara con el promedio de su propia parvada, así no influye si la parvada fue buena o mala.</p>
+  <div class="scroll"><table><thead><tr><th>Galera</th><th>Lb por pollito (prom.)</th><th>vs su parvada</th><th>Veces arriba</th><th>Última (P${w[w.length-1].f.num})</th></tr></thead><tbody>
+  ${s.map((r,i)=>`<tr><td>G${r.g+1} ${i===0?'<span class="pill good">Mejor</span>':i===s.length-1?'<span class="pill warn">Más baja</span>':""}</td><td class="num">${fx(r.per,3)}</td><td class="num ${r.rel>1?"up":r.rel<-1?"dn":""}">${r.rel>=0?"+":""}${fx(r.rel,1)}%</td><td class="num">${r.beat} de ${w.length}</td><td class="num ${r.last>1?"up":r.last<-1?"dn":""}">${r.last>=0?"+":""}${fx(r.last,1)}%</td></tr>`).join("")}
+  </tbody></table></div></div>`;
+}
+function hatchCard(cs){
+  const w=cs.filter(c=>c.LQ.L.chicks&&ok(c.mort));if(w.length<3)return "";
+  const H={};w.forEach(c=>{const ch=c.LQ.L.chicks,t=sum(Object.values(ch));Object.entries(ch).forEach(([k,v])=>{(H[k]=H[k]||{n:0,birds:0,share:[],mort:[],w:[]});const h=H[k];h.n++;h.birds+=v;h.share.push(v/t*100);h.mort.push({s:v/t,m:c.mort});h.w.push({s:v/t,w:c.tabW})})});
+  const ks=Object.keys(H).sort((a,b)=>H[b].birds-H[a].birds);
+  const wm=a=>{const s=sum(a.map(x=>x.s));return s?sum(a.map(x=>x.s*(x.m??x.w)))/s:null};
+  return `<div class="card"><h3>Origen del pollito</h3><p class="note">Cuántos pollitos vinieron de cada incubadora y la mortalidad y peso promedio de las parvadas donde participó, ponderado por su porcentaje. Es una pista, no una prueba: las parvadas mezclan incubadoras.</p>
+  <div class="scroll"><table><thead><tr><th>Incubadora</th><th>Parvadas</th><th>Pollitos</th><th>% promedio por parvada</th><th>Mortalidad ponderada</th><th>Peso ponderado</th></tr></thead><tbody>
+  ${ks.map(k=>{const h=H[k];return `<tr><td>${esc(k)}</td><td class="num">${h.n}</td><td class="num">${fi(h.birds)}</td><td class="num">${fx(mean(h.share),0)}%</td><td class="num">${pct(wm(h.mort))}</td><td class="num">${fx(wm(h.w.map(x=>({s:x.s,m:x.w}))),3)}</td></tr>`}).join("")}
+  </tbody></table></div></div>`;
+}
+
+/* ---------- ENERGÍA ELÉCTRICA (facturas DISNORTE) ---------- */
+const MESL_=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+function bills(farm){return [...S.energy.values()].filter(b=>b.farm===farm&&ok(b.kwh)).sort((a,b)=>a.from.localeCompare(b.from))}
+function dayList(a,b){const o=[];let d=pd(a);const e=pd(b);while(d<e){o.push(iso(d));d=new Date(d.getTime()+864e5)}return o}
+function occupancy(farm){ /* para cada día: parvada en galeras (o la siguiente si está vacía) y edad */
+  const fl=farmFlocks(farm).map(f=>{const L=f.close&&f.close.liqC;return {f,a:(L&&L.place)||f.start,b:(L&&L.lastHarvest)||f.harvest||todayStr()}}).filter(x=>x.a).sort((x,y)=>x.a.localeCompare(y.a));
+  return d=>{let cur=null,next=null;for(const x of fl){if(d>=x.a&&d<=x.b){cur=x;break}if(x.a>d){next=x;break}}
+    return cur?{f:cur.f,age:days(cur.a,d),birds:true}:{f:next?next.f:null,age:null,birds:false}};
+}
+function tcFor(f){const L=f&&f.close&&f.close.liqC;return L&&ok(L.tc)?+L.tc:36.6243}
+function energyModel(farm,bs){
+  const occ=occupancy(farm);
+  bs.forEach(b=>{let e=0,w=0,ag=0;dayList(b.from,b.to).forEach(d=>{const o=occ(d);if(o.birds){w++;ag+=o.age}else e++});b._empty=e;b._birds=w;b._age=ag});
+  /* consumo = a·días vacíos + b·días con pollos + c·(suma de edades): mínimos cuadrados */
+  const X=bs.filter(b=>!b.excl).map(b=>[b._empty,b._birds,b._age]),y=bs.filter(b=>!b.excl).map(b=>b.kwh);
+  const A=[[0,0,0],[0,0,0],[0,0,0]],v=[0,0,0];X.forEach((r,i)=>{for(let p=0;p<3;p++){v[p]+=r[p]*y[i];for(let q=0;q<3;q++)A[p][q]+=r[p]*r[q]}});
+  const det=m=>m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])-m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])+m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]);
+  const D=det(A);let c=null;if(Math.abs(D)>1e-6)c=[0,1,2].map(k=>det(A.map((r,i)=>r.map((x,j)=>j===k?v[i]:x)))/D);
+  if(c&&c[0]<0){ /* un día vacío no puede gastar menos de cero: se ajusta sin ese término */
+    const a=A[1][1],b2=A[1][2],d=A[2][2],dd=a*d-b2*b2;if(Math.abs(dd)>1e-6)c=[0,(v[1]*d-b2*v[2])/dd,(a*v[2]-b2*v[1])/dd]}
+  bs.forEach(b=>{b._exp=c?c[0]*b._empty+c[1]*b._birds+c[2]*b._age:null;b._dev=ok(b._exp)&&b._exp>0?(b.kwh-b._exp)/b._exp*100:null});
+  return {c,occ};
+}
+function billChecks(b,prev,P){
+  const out=[];const add=(ok_,t,d)=>out.push({ok:ok_,t,d});
+  const sumOther=Object.entries(b.other||{});const taxed=sumOther.filter(([k])=>!/mora|ajuste|n\.c\./i.test(k)).reduce((s,[,v])=>s+v,0),untaxed=sumOther.filter(([k])=>/mora|ajuste|n\.c\./i.test(k)).reduce((s,[,v])=>s+v,0);
+  if(ok(b.rdA)&&ok(b.rdB)&&ok(b.mult)){const k=(b.rdB-b.rdA)*b.mult;add(Math.abs(k-b.kwh)<1,"Lectura del medidor",`(${b.rdB} − ${b.rdA}) × ${b.mult} = ${fi(k)} kWh${Math.abs(k-b.kwh)<1?"":` pero facturan ${fi(b.kwh)}`}`)}
+  if(prev&&ok(prev.rdB)&&ok(b.rdA)){const g=b.rdA-prev.rdB;add(g===0&&prev.to===b.from,"Continúa donde terminó la factura anterior",g===0?`lectura inicial ${b.rdA} = final anterior`:`la factura anterior terminó en ${prev.rdB} y esta empieza en ${b.rdA}: ${g<0?`se cobraron ${fi(-g*b.mult)} kWh dos veces`:`${fi(g*b.mult)} kWh sin cobrar`}`)}
+  if(ok(b.energy)&&b.kwh){const r=b.energy/b.kwh;add(!prev||!prev.energy||Math.abs(r-prev.energy/prev.kwh)<prev.energy/prev.kwh*0.004,"Precio de la energía",`C$ ${fx(r,4)} por kWh${prev&&prev.energy?` (anterior ${fx(prev.energy/prev.kwh,4)})`:""}`)}
+  if(ok(b.demand)&&b.kw){const r=b.demand/b.kw;add(!prev||!prev.demand||Math.abs(r-prev.demand/prev.kw)<prev.demand/prev.kw*0.004,"Precio de la demanda",`C$ ${fx(r,4)} por kW${prev&&prev.demand?` (anterior ${fx(prev.demand/prev.kw,4)})`:""}`)}
+  if(ok(b.kw)){const c=b.kwC||293;const med=P.medKw;add(b.kw<=c&&(!ok(med)||b.kw<=med*1.35),"Demanda máxima",`${fi(b.kw)} kW · contratados ${fi(c)}${ok(med)?` · lo normal es ${fi(med)}`:""}${b.kw>c?" · supera lo contratado":""}`)}
+  if(ok(b.ine)){const e=(b.energy+b.demand+b.comer+sumOther.filter(([k])=>/alumbr/i.test(k)).reduce((s,[,v])=>s+v,0))*0.01;add(Math.abs(e-b.ine)<2,"Regulación INE (1%)",`${fx(b.ine,2)} · esperado ${fx(e,2)}`)}
+  if(ok(b.iva)){const e=(b.energy+b.demand+b.comer+b.ine+taxed)*0.15;add(Math.abs(e-b.iva)<1,"IVA 15%",`${fx(b.iva,2)} · esperado ${fx(e,2)}`)}
+  const tot=(b.energy+b.demand+b.comer+b.ine+taxed)+b.iva+untaxed;add(Math.abs(tot-b.total)<1,"La suma da el total",`${fx(tot,2)} = ${fx(b.total,2)}`);
+  if(ok(b.fp))add(b.fp>=0.9,"Factor de potencia",`${fx(b.fp,2)} · si baja de 0.90 cobran recargo`);
+  if(ok(b.days))add(b.days>=27&&b.days<=33,"Días facturados",`${b.days} días`);
+  if(ok(b.debt))add(b.debt<=b.total+1,"Deuda anterior",b.debt<=b.total+1?"la factura no arrastra saldos pendientes":`deuda total C$ ${fx(b.debt,2)}: incluye C$ ${fx(b.debt-b.total,2)} de facturas anteriores`);
+  if(sumOther.length)add(!sumOther.some(([k])=>/mora|reconex/i.test(k)),"Otros cargos",sumOther.map(([k,v])=>`${k}: ${fx(v,2)}`).join(" · "));
+  if(b.claim){const c=b.claim;add(c.status!=="rechazado",`Reclamo ${c.status}`,[c.res1,c.res2].filter(Boolean).join(" · ")+(c.detail?` · ${c.detail}`:""))}
+  if(ok(b._dev))add(Math.abs(b._dev)<=25,"Consumo vs lo esperado por los pollos",`${fi(b.kwh)} kWh · esperado ${fi(b._exp)} (${b._dev>=0?"+":""}${fx(b._dev,0)}%) con ${b._birds} días con pollos y ${b._empty} vacíos`);
+  return out;
+}
+function billPaid(b,rows){
+  const name=MESL_[+b.month.slice(5)-1],yr=b.month.slice(0,4);const lim=iso(new Date(pd(b.to).getTime()+80*864e5));
+  const rs=rows.filter(r=>/energ/i.test(r.c||"")&&r.d>=b.to&&r.d<=lim&&(Math.abs((r.tot||0)-b.total)<1||(new RegExp(name,"i").test(r.t||"")&&(!/20\d\d/.test(r.t||"")||(r.t||"").includes(yr)))));
+  const paid=sum(rs.map(r=>r.tot));return {rs,paid:paid||0};
+}
+function renderEnergia(){
+  const el=$("#v-energia");const farm=S.farm;const bs=bills(farm);
+  if(!bs.length){el.innerHTML=`<div class="empty"><h2>Aún no hay facturas de energía</h2><p>Registra la primera con el formulario de abajo.</p></div>${energyForm(farm,null)}`;bindEnergyForm(farm);return}
+  const M=energyModel(farm,bs);const pays=allPayments(farm);
+  const medKw=(a=>a.length?a[Math.floor(a.length/2)]:null)(bs.map(b=>b.kw).filter(ok).sort((a,b)=>a-b));
+  bs.forEach((b,i)=>{b._chk=billChecks(b,bs[i-1],{medKw});b._pay=billPaid(b,pays);const f=M.occ(b.to).f;b._tc=f?tcFor(f):36.6243;b._usd=b.total/b._tc});
+  if(!S.enSel||!bs.some(b=>b._id===S.enSel))S.enSel=bs[bs.length-1]._id;const B=bs.find(b=>b._id===S.enSel);
+  const last12=bs.slice(-12);const kwh12=sum(last12.map(b=>b.kwh)),tot12=sum(last12.map(b=>b.total)),dem12=sum(last12.map(b=>b.demand)),usd12=sum(last12.map(b=>b._usd));
+  const prevY=bs.slice(-24,-12);
+  /* energía por parvada */
+  const per={};bs.forEach(b=>{const ds=dayList(b.from,b.to);const k=b.kwh/ds.length,t=b.total/ds.length,u=b._usd/ds.length,sub=(b.total-b.iva)/ds.length;ds.forEach(d=>{const o=M.occ(d);if(!o.f)return;const p=per[o.f._id]=per[o.f._id]||{f:o.f,kwh:0,c:0,u:0,sub:0,days:0,full:true};p.kwh+=k;p.c+=t;p.u+=u;p.sub+=sub;p.days++})});
+  const first=bs[0].from,lastTo=bs[bs.length-1].to;
+  const PF=Object.values(per).map(p=>{const c=C_(p.f);const L=p.f.close&&p.f.close.liqC;const st=(L&&L.place)||p.f.start,en=(L&&L.lastHarvest)||p.f.harvest;
+    const prevF=farmFlocks(farm).filter(x=>x.num<p.f.num).slice(-1)[0];const pe=prevF?((prevF.close&&prevF.close.liqC&&prevF.close.liqC.lastHarvest)||prevF.harvest):null;
+    p.full=((pe||st)||"")>=first&&en&&en<lastTo&&c.closed;const ex=p.f.close&&p.f.close.costs?Object.entries(p.f.close.costs).find(([k])=>/energ/i.test(k)):null;
+    return {...p,c_:c,lbs:c.lbs,birds:c.birds,exCost:ex?ex[1]:null}}).sort((a,b)=>a.f.num-b.f.num);
+  const full=PF.filter(p=>p.full);const avgKwhLb=sum(full.map(p=>p.kwh))/sum(full.map(p=>p.lbs));
+  const flags=[];bs.forEach(b=>b._chk.filter(c=>!c.ok&&!/Consumo vs/.test(c.t)).forEach(c=>flags.push({b,c})));
+  bs.forEach(b=>{if(ok(b._dev)&&(b._dev>25||b._dev<-35))flags.push({b,c:{t:b._dev>0?"Consumo más alto de lo esperado":"Consumo más bajo de lo esperado",d:`${fi(b.kwh)} kWh vs ${fi(b._exp)} esperados (${b._dev>=0?"+":""}${fx(b._dev,0)}%)`}})});
+  bs.forEach(b=>{if(b._pay.paid&&b._pay.paid<b.total-1)flags.push({b,c:{t:b.claim&&b.claim.status==="rechazado"?"Saldo pendiente: reclamo rechazado":"Pagada parcialmente",d:`pagado C$ ${fx(b._pay.paid,2)} de ${fx(b.total,2)} · faltan C$ ${fx(b.total-b._pay.paid,2)} (${usd((b.total-b._pay.paid)/b._tc,2)})${b.claim?` · ${b.claim.status==="rechazado"?"el INE confirmó la factura ("+b.claim.res2+")":"reclamo "+b.claim.status}`:b._pay.rs.some(r=>/reclamo/i.test(r.t||""))?" · en reclamo":""}`}})});
+  const bl=b=>`${MESL_[+b.month.slice(5)-1]} ${b.month.slice(0,4)}`;
+  const owed=bs.filter(b=>b.claim&&b.claim.status==="rechazado"&&b._pay.paid<b.total-1);
+  let html=`<div class="flock-head"><h2>Energía eléctrica</h2><span class="muted">${esc(farmName(farm))} · ${bs.length} facturas · ${esc(bs[bs.length-1].nis?"NIS "+bs[bs.length-1].nis:"")} · tarifa ${esc(bs[bs.length-1].tariff||"")}</span></div>
+  <div class="kpis">
+   ${kpi("Gasto últimos 12 meses",usdk(usd12),"",`C$ ${fx(tot12/1e6,2)} mill. · ${prevY.length===12?diffTag(tot12,sum(prevY.map(b=>b.total)),false)+" vs 12 meses anteriores":""}`)}
+   ${kpi("Consumo últimos 12 meses",fx(kwh12/1000,0),"mil kWh",`${fi(kwh12/12)} kWh por mes`)}
+   ${kpi("Costo real por kWh",fx(tot12/kwh12,2),"C$",`${usd(tot12/kwh12/36.6243,3)} · con demanda e IVA`)}
+   ${kpi("Energía por libra producida",fx(avgKwhLb,4),"kWh",`${usd(sum(full.map(p=>p.u))/sum(full.map(p=>p.lbs)),4)} por libra · ${full.length} parvadas completas`)}
+  </div>
+  ${owed.length?`<div class="banner warn"><b>Saldo pendiente con DISNORTE: C$ ${fx(sum(owed.map(b=>b.total-b._pay.paid)),2)}</b> (${usd(sum(owed.map(b=>(b.total-b._pay.paid)/b._tc)),2)}) de ${owed.map(b=>esc(bl(b))).join(", ")}. El reclamo fue rechazado y se agotó la vía administrativa.${(l=>l&&ok(l.debt)&&l.debt<=l.total+1?` Ojo: la última factura (${esc(bl(l))}) no muestra ese saldo como deuda; confirma con DISNORTE si ya está saldado o si lo volverán a cobrar.`:" Conviene pagarlo para evitar recargos o corte.")(bs[bs.length-1])}</div>`:""}
+  <div class="grid2 eq">
+   <div class="card"><h3>Consumo por factura (kWh)</h3><div class="chart" id="enK"></div><div class="legend"><span><i class="band" style="background:var(--s1)"></i>Facturado</span><span><i style="background:var(--ink)"></i>Esperado según los pollos</span></div></div>
+   <div class="card"><h3>Total de cada factura (C$)</h3><div class="chart" id="enT"></div><div class="legend"><span><i class="band" style="background:var(--s1)"></i>Total con IVA</span><span><i style="background:var(--ink)"></i>Parte fija: demanda</span></div></div>
+  </div>
+  <div class="card"><div class="card-h"><h3>Revisión de la factura</h3><select id="enSel" aria-label="Factura">${bs.slice().reverse().map(b=>`<option value="${b._id}" ${b._id===S.enSel?"selected":""}>${bl(b)}</option>`).join("")}</select></div>
+   <div class="grid2">
+    <div class="alerts">${B._chk.map(c=>`<div class="alert ${c.ok?"good":"warn"}" style="cursor:default"><span class="dot"></span><div class="txt"><span class="lvl">${c.ok?"Bien":"Revisar"}</span> · <b>${esc(c.t)}</b>: ${esc(c.d)}</div></div>`).join("")}</div>
+    <div class="kv">
+     <span>Periodo</span><b>${fdShort(B.from)} – ${fdShort(B.to)} · ${B.days} días</b>
+     <span>Consumo</span><b>${fi(B.kwh)} kWh · ${fi(B.kwh/B.days)} por día</b>
+     <span>Demanda máxima</span><b>${fi(B.kw)} kW</b>
+     <div class="hr"></div>
+     <span>Energía</span><b>C$ ${fx(B.energy,2)}</b><span>Demanda</span><b>C$ ${fx(B.demand,2)}</b><span>Comercialización</span><b>C$ ${fx(B.comer,2)}</b><span>Regulación INE</span><b>C$ ${fx(B.ine,2)}</b>
+     ${Object.entries(B.other||{}).map(([k,v])=>`<span>${esc(k)}</span><b>C$ ${fx(v,2)}</b>`).join("")}
+     <span>IVA</span><b>C$ ${fx(B.iva,2)}</b><span class="strong">Total</span><b class="strong">C$ ${fx(B.total,2)}</b><span>En dólares</span><b>${usd(B._usd,2)}</b>
+     <div class="hr"></div>
+     <span>Costo por kWh con todo</span><b>C$ ${fx(B.total/B.kwh,2)}</b>
+     <span>Pagado</span><b>${B._pay.paid?`C$ ${fx(B._pay.paid,2)} ${B._pay.paid>=B.total-1?'<span class="pill good">Pagada</span>':'<span class="pill warn">Parcial</span>'}`:'<span class="pill">Sin pago registrado</span>'}</b>
+     <span>Pollos en el periodo</span><b>${B._birds} días con pollos · ${B._empty} vacíos</b>
+     ${B.claim?`<div class="hr"></div><span>Reclamo</span><b>${B.claim.status==="rechazado"?'<span class="pill bad">Rechazado</span>':`<span class="pill warn">${esc(B.claim.status)}</span>`}</b>${B._pay.paid<B.total-1?`<span class="strong">Saldo pendiente</span><b class="strong">C$ ${fx(B.total-B._pay.paid,2)}</b>`:""}`:""}
+    </div>
+   </div>${B.note?`<p class="src">${esc(B.note)}</p>`:""}</div>
+  <div class="card"><h3>Hallazgos en todas las facturas</h3>${flags.length?`<div class="alerts">${flags.map(x=>`<div class="alert warn" data-eb="${x.b._id}" role="button" tabindex="0"><span class="dot"></span><div class="txt"><span class="lvl">${esc(bl(x.b))}</span> · <b>${esc(x.c.t)}</b>: ${esc(x.c.d)}</div></div>`).join("")}</div>`:`<p class="note">Todas las facturas cuadran.</p>`}
+   <p class="src">Toca un hallazgo para revisar esa factura.</p></div>
+  <div class="card"><h3>Cómo cobra DISNORTE</h3><p class="note">La factura tiene dos partes grandes: la <b>energía</b> (kWh usados × C$ ${fx(bs[bs.length-1].energy/bs[bs.length-1].kwh,4)}) y la <b>demanda</b> (el pico más alto de kW del mes × C$ ${fx(bs[bs.length-1].demand/bs[bs.length-1].kw,4)}). La demanda se cobra igual aunque la granja esté vacía casi todo el mes: en los últimos 12 meses fue <b>${pct(dem12/(tot12-sum(last12.map(b=>b.iva)))*100,0)}</b> de la factura sin IVA. Bajar el pico ${fi(20)} kW (por ejemplo, no arrancar todos los ventiladores, bombas y luces al mismo tiempo) ahorra C$ ${fx(20*bs[bs.length-1].demand/bs[bs.length-1].kw*1.16,0)} al mes, unos ${usd(20*bs[bs.length-1].demand/bs[bs.length-1].kw*1.16*12/36.6243)} al año.</p>
+  <p class="note">El consumo esperado sale de las facturas pasadas: ${M.c?`${M.c[0]<1?"los días vacíos casi no gastan; ":`cada día vacío gasta unos ${fi(M.c[0])} kWh; `}cada día con pollos ${fi(M.c[1])} kWh más ${fi(M.c[2])} kWh por cada día de edad de los pollos (más ventilación conforme crecen)`:"faltan facturas para calcularlo"}.</p></div>
+  <div class="card"><div class="card-h"><h3>Energía por parvada</h3><span class="src">Cada día se asigna a la parvada en galeras; los días vacíos, a la parvada que viene</span></div>
+  <div class="scroll"><table><thead><tr><th>Parvada</th><th>Días</th><th>kWh</th><th>C$ con IVA</th><th>US$</th><th>kWh por libra</th><th>US$ por libra</th><th>US$ por pollo</th><th>Tu Excel (costo energía)</th></tr></thead><tbody>
+  ${PF.slice().reverse().map(p=>`<tr class="click" data-id="${p.f._id}"><td>${flockName(p.f)}${p.full?"":' <span class="pill">parcial</span>'}</td><td class="num">${p.days}</td><td class="num">${fi(p.kwh)}</td><td class="num">${fx(p.c,0)}</td><td class="num">${fx(p.u,0)}</td><td class="num">${p.full&&p.lbs?fx(p.kwh/p.lbs,4):"—"}</td><td class="num">${p.full&&p.lbs?fx(p.u/p.lbs,4):"—"}</td><td class="num">${p.full&&p.birds?fx(p.u/p.birds,3):"—"}</td><td class="num">${ok(p.exCost)?usd(p.exCost):"—"}${ok(p.exCost)&&p.full?` <span class="src">(${diffTag(p.exCost,p.u,true).replace(/class="[^"]*"/,"")})</span>`:""}</td></tr>`).join("")}
+  </tbody></table></div><p class="note">“Parcial”: la parvada empezó antes de la primera factura o sigue en curso. La comparación con el Excel muestra cuánto difiere el costo que registraste del que sale de las facturas.</p></div>
+  <div class="card"><h3>Todas las facturas</h3><div class="scroll"><table><thead><tr><th>Mes</th><th>Periodo</th><th>Días</th><th>kWh</th><th>kWh/día</th><th>kW</th><th>Energía C$</th><th>Demanda C$</th><th>Total C$</th><th>C$/kWh</th><th>US$</th><th>Esperado</th><th>Pago</th></tr></thead><tbody>
+  ${bs.slice().reverse().map(b=>`<tr class="click" data-eb="${b._id}"><td>${esc(bl(b))}</td><td>${fdShort(b.from)} – ${fdShort(b.to)}</td><td class="num">${b.days}</td><td class="num">${fi(b.kwh)}</td><td class="num">${fi(b.kwh/b.days)}</td><td class="num ${b.kw>(b.kwC||293)?"dn":""}">${fi(b.kw)}</td><td class="num">${fx(b.energy,0)}</td><td class="num">${fx(b.demand,0)}</td><td class="num">${fx(b.total,0)}</td><td class="num">${fx(b.total/b.kwh,2)}</td><td class="num">${fx(b._usd,0)}</td><td class="num ${ok(b._dev)&&Math.abs(b._dev)>25?"wn":""}">${ok(b._dev)?(b._dev>=0?"+":"")+fx(b._dev,0)+"%":"—"}</td><td>${b._pay.paid>=b.total-1?'<span class="pill good">Pagada</span>':b._pay.paid?'<span class="pill warn">Parcial</span>':'<span class="muted">—</span>'}</td></tr>`).join("")}
+  <tr class="total"><td>Total</td><td></td><td class="num">${fi(sum(bs.map(b=>b.days)))}</td><td class="num">${fi(sum(bs.map(b=>b.kwh)))}</td><td></td><td></td><td class="num">${fx(sum(bs.map(b=>b.energy)),0)}</td><td class="num">${fx(sum(bs.map(b=>b.demand)),0)}</td><td class="num">${fx(sum(bs.map(b=>b.total)),0)}</td><td class="num">${fx(sum(bs.map(b=>b.total))/sum(bs.map(b=>b.kwh)),2)}</td><td class="num">${fx(sum(bs.map(b=>b._usd)),0)}</td><td></td><td></td></tr></tbody></table></div>
+  <p class="src">“Esperado”: diferencia entre lo facturado y lo esperado según los días con pollos y su edad. “Pago”: busca en el detalle de pagos (categoría energía) el monto o el mes de la factura.</p></div>
+  ${energyForm(farm,bs[bs.length-1])}`;
+  el.innerHTML=html;
+  const it=bs.map(b=>({key:b._id,lab:MES[+b.month.slice(5)-1].slice(0,1).toUpperCase()+b.month.slice(2,4),b}));
+  barChart($("#enK"),it.map(i=>({...i,v:i.b.kwh,v2:i.b._exp})),{fmt:v=>fx(v/1000,0)+" mil",aria:"Consumo por factura",zero:true,hl:S.enSel,onClick:x=>{S.enSel=x.key;renderEnergia()},
+    tip:x=>`<b>${esc(bl(x.b))}</b><br>${fi(x.b.kwh)} kWh · ${fi(x.b.kwh/x.b.days)} por día<br>Esperado: ${fi(x.b._exp)} kWh<br>${x.b._birds} días con pollos · ${x.b._empty} vacíos`});
+  barChart($("#enT"),it.map(i=>({...i,v:i.b.total,v2:i.b.demand*1.16})),{fmt:v=>fx(v/1000,0)+" mil",aria:"Total por factura",zero:true,hl:S.enSel,onClick:x=>{S.enSel=x.key;renderEnergia()},
+    tip:x=>`<b>${esc(bl(x.b))}</b><br>Total: C$ ${fx(x.b.total,2)}<br>Energía: C$ ${fx(x.b.energy,0)}<br>Demanda: C$ ${fx(x.b.demand,0)} (${fi(x.b.kw)} kW)<br>${usd(x.b._usd)}`});
+  $("#enSel").addEventListener("change",e=>{S.enSel=e.target.value;renderEnergia()});
+  el.querySelectorAll("[data-eb]").forEach(x=>x.addEventListener("click",()=>{S.enSel=x.dataset.eb;renderEnergia();window.scrollTo({top:el.querySelector("#enSel").getBoundingClientRect().top+window.scrollY-120,behavior:"smooth"})}));
+  el.querySelectorAll("tr[data-id]").forEach(tr=>tr.addEventListener("click",()=>goFlock(tr.dataset.id)));
+  bindEnergyForm(farm);
+}
+const EN_FIELDS=[["month","Mes de la factura (AAAA-MM)","text"],["from","Desde","date"],["to","Hasta","date"],["days","Días facturados",1],["rdA","Lectura anterior",1],["rdB","Lectura actual",1],["mult","Multiplicador",1],
+  ["kwh","Consumo kWh",1],["kw","Demanda kW",1],["kwC","kW contratados",1],["fp","Factor de potencia",0.01],["energy","Energía C$",0.01],["demand","Demanda C$",0.01],["comer","Comercialización C$",0.01],["ine","Regulación INE C$",0.01],["iva","IVA C$",0.01],["total","Total facturado C$",0.01]];
+function energyForm(farm,last){
+  const d={mult:last?last.mult:700,kwC:last?last.kwC:293,rdA:last?last.rdB:null,from:last?last.to:"",comer:last?last.comer:null};
+  return `<div class="card"><h3>Registrar factura de energía</h3><p class="note">Copia los datos de la factura de DISNORTE. Al guardar, el panel la revisa sola.</p>
+  <div class="close-form">${EN_FIELDS.map(([k,l,st])=>{const tp=st==="text"?"text":st==="date"?"date":"number";const v=d[k];return `<label class="field">${l}<input type="${tp}" ${tp==="number"?`step="${st}"`:""} data-en="${k}" value="${v!==undefined&&v!==null?esc(v):""}"></label>`}).join("")}</div>
+  <div class="row" style="justify-content:space-between;margin-top:8px"><span class="note" id="enMsg"></span><button class="btn primary" id="enSave" ${S.readonly||!S.db?"disabled":""}>Guardar factura</button></div></div>`;
+}
+function bindEnergyForm(farm){
+  const b=$("#enSave");if(!b)return;
+  b.addEventListener("click",async()=>{const o={farm,other:{}};document.querySelectorAll("[data-en]").forEach(i=>{const k=i.dataset.en;if(i.type==="number"){if(i.value!=="")o[k]=+i.value}else if(i.value)o[k]=i.value.trim()});
+    if(!/^\d{4}-\d{2}$/.test(o.month||"")||!o.from||!o.to||!ok(o.kwh)||!ok(o.total)){$("#enMsg").textContent="Escribe al menos mes (AAAA-MM), desde, hasta, kWh y total.";return}
+    if(!ok(o.days))o.days=days(o.from,o.to);const id=farm+"-"+o.month;b.disabled=true;
+    try{await S.db.doc("energy/"+id).set(JSON.parse(JSON.stringify(o)));S.enSel=id;toast("Factura guardada")}catch(e){$("#enMsg").textContent="No se guardó: "+(e.message||e.code);b.disabled=false}});
+}
+
 /* ---------- DETALLE DE PAGOS ---------- */
 const METODO={EF:"Efectivo",TC:"Tarjeta",TF:"Transferencia",CK:"Cheque"};
 function allPayments(farm){
@@ -1236,7 +1530,7 @@ function allPayments(farm){
   return out.sort((a,b)=>b.d.localeCompare(a.d));
 }
 const pNum=p=>{const m=/^P(\d+)$/.exec(p||"");return m?+m[1]:null};
-function payCycle(r){const n=pNum(r.p);if(n){const f=S.flocks.get(S.farm+"-"+String(n).padStart(2,"0"));if(f&&ok(f.cycle))return f.cycle;return cycOf(n)}return null}
+function payCycle(r){const n=pNum(r.p);if(n){const f=S.flocks.get(S.farm+"-"+String(n).padStart(2,"0"));if(f&&ok(f.cycle))return f.cycle;return Math.floor((n-1)/7)+1}return null}
 function renderPagos(){
   const el=$("#v-pagos");const farm=S.farm;const rows=allPayments(farm);
   if(!S.pf)S.pf={q:"",cyc:"",p:"",c:"",k:"",m:"",from:"",to:"",lim:150};
@@ -1337,7 +1631,7 @@ function renderApendice(){
   if(!full){el.innerHTML=emptyState();return}
   const A=cycleAgg(farm,full),B=cycleAgg(farm,full-1),F1=cycleAgg(farm,cyclesOf(farm)[0]);
   const obs=observations(farm,A,B,F1);
-  const base={alive:A.alive/A.n,birds:A.birds/A.n,w:A.wFinal,fcr:A.fcr,cost:A.costLb,mort:A.mort,hab:A.habN?A.hab/A.habN:0};
+  const base={alive:A.alive/A.n,birds:A.birds/A.n,w:A.wFinal,fcr:A.fcr,cost:A.costLb,mort:A.mort};
   const res=(o)=>{const p=pay(o.w,o.fcr);const lbs=o.alive*o.w;const inc=lbs*p.total;return {p,lbs,inc,profit:inc-lbs*base.cost}};
   const B0=res(base);
   const row=(lab,o,note="")=>{const r=res(o);const d=r.inc-B0.inc;return `<tr class="${Math.abs(d)<1?"sel":""}"><td>${lab}</td><td class="num">${usd(r.p.total,4)}</td><td class="num">${lbk(r.lbs)}</td><td class="num">${usd(r.inc)}</td><td class="num ${d>1?"up":d<-1?"dn":""}">${Math.abs(d)<1?"base":(d>0?"+":"")+usd(d)}</td><td class="num ${d>1?"up":d<-1?"dn":""}">${Math.abs(d)<1?"—":(d>0?"+":"")+usd(d*7)}</td><td class="src" style="text-align:left;white-space:normal">${note}</td></tr>`};
@@ -1349,8 +1643,8 @@ function renderApendice(){
   let html=`<div class="flock-head"><h2>Apéndice</h2><span class="muted">${esc(farmName(farm))} · observaciones y ejercicios de dinero</span></div>
   <div class="card"><h3>Observaciones que muestran los números</h3><ol class="obs">${obs.map(o=>`<li><b>${o.t}</b> ${o.d}</li>`).join("")}</ol>
   <p class="src">Se recalculan solas cada vez que agregas o corriges datos.</p></div>
-  <div class="card"><h3>Punto de partida de los ejercicios</h3><p class="note">Una parvada promedio de ${cycLabel(full)} (${cycYears(full)}), pagada con la tabla Cargill 2025. Cargill pone el alimento y el pollito: a ti te pagan por libra producida, y la conversión solo cambia el bono que recibes.</p>
-   <div class="sim-out">${kpi("Aves vivas a cosecha",fi(base.alive),"",`de ${fi(base.birds)} recibidas`)}${kpi("Peso a cosecha",fx(base.w,2),"lb","")}${kpi("Conversión",fx(base.fcr,3),"","")}${kpi("Precio tabla 2025",usd(B0.p.total,4),"/lb",`base ${usd(B0.p.base,4)} + bono por conversión ${usd(B0.p.bfcr,4)} + otros ${usd(B0.p.mejora+B0.p.inv,4)}`)}${kpi("Liquidación por parvada",usdk(B0.inc),"",`${lbk(B0.lbs)} lb`)}${kpi("Químicos Cargill por parvada",usd(base.hab),"",`ya incluidos en el costo · promedio de ${cycLabel(full)}`)}${kpi("Costo operativo",usd(base.cost,4),"/lb",`utilidad ${usdk(B0.profit)} por parvada`)}</div></div>
+  <div class="card"><h3>Punto de partida de los ejercicios</h3><p class="note">Una parvada promedio de ${cycLabel(full)} (${cycYears(full)}), pagada con la tabla Cargill de septiembre 2025. Cargill pone el alimento y el pollito: a ti te pagan por libra producida, y la conversión solo cambia el bono que recibes.</p>
+   <div class="sim-out">${kpi("Aves vivas a cosecha",fi(base.alive),"",`de ${fi(base.birds)} recibidas`)}${kpi("Peso a cosecha",fx(base.w,2),"lb","")}${kpi("Conversión",fx(base.fcr,3),"","")}${kpi("Precio tabla sept. 2025",usd(B0.p.total,4),"/lb",`base ${usd(B0.p.base,4)} + bono por conversión ${usd(B0.p.bfcr,4)} + otros ${usd(B0.p.mejora+B0.p.inv,4)}`)}${kpi("Liquidación por parvada",usdk(B0.inc),"",`${lbk(B0.lbs)} lb`)}${kpi("Costo operativo",usd(base.cost,4),"/lb",`utilidad ${usdk(B0.profit)} por parvada`)}</div></div>
   <div class="card"><h3>Ejercicio 1 · Mejorar la conversión alimenticia</h3><div class="scroll"><table>${th}<tbody>
    ${fcrs.map(d=>row(d===0?`Conversión ${fx(base.fcr,3)} (hoy)`:`Conversión ${fx(base.fcr+d,3)} (${d>0?"+":""}${fx(d,2)})`,{...base,fcr:base.fcr+d},d===0?"":`Bono por conversión ${usd(pay(base.w,base.fcr+d).bfcr,4)}/lb`)).join("")}
   </tbody></table></div><p class="note">Cada 0.01 de conversión cambia el bono en unos ${usd(Math.abs(pay(base.w,base.fcr-0.01).total-B0.p.total),4)} por libra: <b>${usd(Math.abs(res({...base,fcr:base.fcr-0.01}).inc-B0.inc))} por parvada</b>, ${usd(Math.abs(res({...base,fcr:base.fcr-0.01}).inc-B0.inc)*7)} al año. Cuidado con cruzar 1.60: arriba de ese valor el bono pasa a ser descuento.</p></div>
@@ -1360,7 +1654,7 @@ function renderApendice(){
   <div class="card"><h3>Ejercicio 3 · Bajar la mortalidad</h3><div class="scroll"><table>${th}<tbody>
    ${ms.map(d=>{const m=base.mort+d;const alive=base.alive-base.birds*d/100;return row(d===0?`${pct(base.mort)} (hoy)`:`${pct(m)} (${d>0?"+":""}${fx(d,1)} puntos)`,{...base,alive},d===0?"":`${fi(alive-base.alive)} pollos ${d<0?"más":"menos"} a cosecha`)}).join("")}
   </tbody></table></div><p class="note">Cada punto de mortalidad son unos ${fi(base.birds/100)} pollos por parvada, que equivalen a ${lbk(base.birds/100*base.w)} lb.</p></div>
-  <div class="card"><h3>Ejercicio 4 · Conversión y peso juntos</h3><p class="note">Utilidad por parvada: liquidación menos el costo operativo de ${usd(base.cost,4)}/lb (el costo ya incluye unos ${usd(base.hab)} de químicos que descuenta Cargill). La celda marcada es hoy.</p>
+  <div class="card"><h3>Ejercicio 4 · Conversión y peso juntos</h3><p class="note">Utilidad operativa por parvada (liquidación menos costo operativo de ${usd(base.cost,4)}/lb). La celda marcada es hoy.</p>
   <div class="scroll"><table><thead><tr><th>Conversión \\ Peso</th>${mtxW.map(w=>`<th>${fx(base.w+w,2)} lb</th>`).join("")}</tr></thead><tbody>
   ${mtxF.map(f=>`<tr><td>${fx(base.fcr+f,3)}</td>${mtxW.map(w=>{const r=res({...base,fcr:base.fcr+f,w:base.w+w});const d=r.profit-B0.profit;return `<td class="num ${f===0&&w===0?"yr-now":d>1?"up":d<-1?"dn":""}">${usdk(r.profit)}<br><span class="src">${f===0&&w===0?"hoy":(d>0?"+":"")+usdk(d)}</span></td>`}).join("")}</tr>`).join("")}
   </tbody></table></div></div>
@@ -1378,7 +1672,10 @@ function renderApendice(){
    <div><b>Raleo</b>: pollos que Cargill saca antes de la cosecha final, con menor peso.</div>
    <div><b>Pollos quedados</b>: pollos que no se llevaron en la cosecha.</div>
    <div><b>Vaciado sanitario</b>: días que la granja queda vacía entre parvadas para limpieza y desinfección.</div>
-   <div><b>Habilitación</b>: preparación de la granja entre parvadas. Cargill descuenta de la liquidación los químicos que usa en ella.</div>
+   <div><b>Habilitación</b>: preparación de la granja entre parvadas (limpieza y desinfección).</div>
+   <div><b>Consumos</b>: químicos e insumos que Cargill aporta y descuenta de la liquidación.</div>
+   <div><b>Reconocimiento</b>: monto que Cargill asume y resta de los consumos, por ejemplo cuando entregó alimento defectuoso que no dio la nutrición esperada.</div>
+   <div><b>Retención IR 2%</b>: Cargill retiene el 2% del total antes de IVA como anticipo del impuesto sobre la renta. No es un gasto perdido: se acredita en la declaración.</div>
    <div><b>Precio liquidado</b>: lo que Cargill paga por cada libra producida: pago base según el peso, más bonos por conversión, mejora e inversión.</div>
    <div><b>Margen por libra</b>: precio liquidado menos el costo operativo por libra. Es lo que queda por cada libra.</div>
    <div><b>Rentabilidad (ROI)</b>: utilidad del año dividida entre el ingreso total.</div>
@@ -1395,7 +1692,8 @@ function observations(farm,A,B,F1){
     const ca=cat(A),cb=cat(B);const ch=Object.keys(ca).map(k=>({k,d:(ca[k]||0)-(cb[k]||0),a:ca[k],b:cb[k]})).sort((x,y)=>y.d-x.d);
     if(ch.length)o.push({t:"Dónde subió el costo.",d:`Por parvada, lo que más aumentó fue ${ch.slice(0,3).map(x=>`${esc(x.k)} (${usd(x.b)} → ${usd(x.a)})`).join(", ")}. ${ch[ch.length-1].d<0?`Bajó ${esc(ch[ch.length-1].k)} (${usd(ch[ch.length-1].b)} → ${usd(ch[ch.length-1].a)}).`:""}`});}
   const hab=cyclesOf(farm).map(y=>cycleAgg(farm,y)).filter(a=>ok(a.deduct));
-  if(hab.length)o.push({t:"Químicos de habilitación.",d:`Cargill descuenta en la liquidación los químicos que usa en la limpieza y preparación de la granja entre parvadas. En ${cycLabel(hab[hab.length-1].cyc)} fueron ${usd(hab[hab.length-1].deduct)} (${pct(hab[hab.length-1].deduct/hab[hab.length-1].income*100,1)} de la liquidación, ${usd(hab[hab.length-1].deduct/hab[hab.length-1].lbs,4)} por libra)${hab.length>1?`; en ${cycLabel(hab[0].cyc)} fueron ${usd(hab[0].deduct)}`:""}.`});
+  if(hab.length)o.push({t:"Lo que Cargill descuenta antes de depositar.",d:`Entre la liquidación y lo que entra al banco por libras hay consumos (químicos e insumos que Cargill aporta, menos reconocimientos) y la retención de IR del 2%. En ${cycLabel(hab[hab.length-1].cyc)} la diferencia fue ${usd(hab[hab.length-1].deduct)} (${pct(hab[hab.length-1].deduct/hab[hab.length-1].income*100,1)} de la liquidación, ${usd(hab[hab.length-1].deduct/hab[hab.length-1].lbs,4)} por libra)${hab.length>1?`; en ${cycLabel(hab[0].cyc)} fue ${usd(hab[0].deduct)}`:""}.`});
+  const lqs=cs.filter(c=>c.LQ&&ok(c.LQ.depFlock));if(lqs.length){const c=lqs[lqs.length-1],q=c.LQ;o.push({t:`Liquidación de la Parvada ${c.f.num}, peso por peso.`,d:`Cargill liquidó C$ ${fx(q.L.total,2)} (${usd(q.L.total/q.tc)}). Descontó consumos netos por C$ ${fx(q.cons,2)}${q.recon?` (químicos C$ ${fx(q.quim,2)} menos un reconocimiento de C$ ${fx(q.recon,2)} que Cargill asumió por alimento defectuoso)`:""} y retuvo IR 2% por C$ ${fx(q.ir,2)}. Por la parvada entraron ${usd(q.depFlock/q.tc,2)} más ${usd(q.iva/q.tc,2)} de IVA.`})}
   if(A.Y&&ok(A.Y.loan))o.push({t:"El préstamo se lleva gran parte de la utilidad.",d:`En ${cycLabel(fullC)} la cuota del préstamo fue ${usdk(A.Y.loan)}, que equivale a ${pct(A.Y.loan/(A.Y.incomeTotal-A.Y.opex)*100,0)} de lo que queda después del gasto operativo. Tras abonos a PM de ${usdk(A.Y.partnerPay)}, el flujo neto fue ${usdk(A.Y.netFlow)}.`});
   const wk=hist(farm,null).wk;if(ok(wk[2].mortCum)&&ok(wk[6].mortCum))o.push({t:"La mortalidad se concentra al inicio.",d:`En promedio ${pct(wk[2].mortCum,1)} de mortalidad ocurre en las primeras 2 semanas, casi ${fx(wk[2].mortCum/wk[6].mortCum*100,0)}% de toda la parvada. Cuidar la recepción y la calefacción en los primeros 14 días es donde más pollos se salvan.`});
   if(cs.length>4){const srt=cs.filter(c=>ok(c.mort)).sort((a,b)=>a.mort-b.mort);const b=srt[0],w=srt[srt.length-1];if(b&&w)o.push({t:"Mucha diferencia de mortalidad entre parvadas.",d:`La mejor fue la Parvada ${b.f.num} con ${pct(b.mort)} y la peor la Parvada ${w.f.num} con ${pct(w.mort)}. La diferencia equivale a unos ${fi((w.mort-b.mort)/100*(w.birds||0))} pollos.`});}
@@ -1403,7 +1701,7 @@ function observations(farm,A,B,F1){
   const gs=G_.filter(x=>ok(x.rel)).sort((a,b)=>b.rel-a.rel);if(gs.length)o.push({t:"Galeras con diferencia constante.",d:`La G${gs[0].g+1} pesa en promedio ${fx(gs[0].rel,1)}% más que su parvada y la G${gs[gs.length-1].g+1} ${fx(Math.abs(gs[gs.length-1].rel),1)}% menos. ${(x=>x?`La G${x.g+1} tiene ${fx(x.mr,2)} puntos más de mortalidad que el promedio.`:"")(G_.filter(x=>ok(x.mr)).sort((a,b)=>b.mr-a.mr)[0])} Vale revisar equipos, ventilación y bebederos de esas galeras.`});
   const lq=cs.map(c=>c.leftT).filter(ok);if(lq.length>8)o.push({t:"Menos pollos quedados.",d:`Las primeras parvadas dejaban en promedio ${fi(mean(lq.slice(0,7)))} pollos sin cosechar; las últimas 7, ${fi(mean(lq.slice(-7)))}.`});
   const p1=pay(A.wFinal,A.fcr),p2=pay(A.wFinal,A.fcr-0.01),p3=pay(A.wFinal+0.1,A.fcr);
-  if(p1&&p2&&p3){const lb=A.alive/A.n*A.wFinal;o.push({t:"Qué mueve más el dinero.",d:`Con la tabla 2025, bajar 0.01 la conversión vale ${usd((p2.total-p1.total)*lb)} por parvada; subir 0.1 lb el peso vale ${usd((A.alive/A.n)*(A.wFinal+0.1)*p3.total-lb*p1.total)}; bajar un punto la mortalidad vale ${usd(A.birds/A.n/100*A.wFinal*p1.total)}. Ver los ejercicios abajo.`});}
+  if(p1&&p2&&p3){const lb=A.alive/A.n*A.wFinal;o.push({t:"Qué mueve más el dinero.",d:`Con la tabla de septiembre 2025, bajar 0.01 la conversión vale ${usd((p2.total-p1.total)*lb)} por parvada; subir 0.1 lb el peso vale ${usd((A.alive/A.n)*(A.wFinal+0.1)*p3.total-lb*p1.total)}; bajar un punto la mortalidad vale ${usd(A.birds/A.n/100*A.wFinal*p1.total)}. Ver los ejercicios abajo.`});}
   return o;
 }
 
@@ -1416,7 +1714,7 @@ function cashData(farm){
   const meta=S.cash.get(farm+"-meta");const rows=meta&&meta.rows?meta.rows:[];
   const months=[...S.cash.values()].filter(d=>d.farm===farm&&d.month).sort((a,b)=>a.month.localeCompare(b.month));
   const n=s=>XP.norm(s);const find=re=>{const r=rows.find(x=>re.test(n(x.label)));return r?r.key:null};
-  const K={inc:find(/^ingresos$/),incP:find(/^ingresos por parvadas/),exp:find(/^total egresos/),ab:find(/^total abono/),sd:find(/^saldo disponible/),bank:find(/^total a final/),
+  const K={inc:find(/^ingresos$/),incP:find(/^ingresos por parvadas/),iva:find(/^iva$/),exp:find(/^total egresos/),ab:find(/^total abono/),sd:find(/^saldo disponible/),bank:find(/^total a final/),
     loan:(rows.find(x=>n(x.label)==="saldo"&&x.level===1)||{}).key,cuotas:rows.filter(x=>/^cuota|^gastos de apertura/.test(n(x.label))).map(x=>x.key)};
   const val=(d,k)=>k&&d&&d.v&&typeof d.v[k]==="number"?d.v[k]:null;
   const cuo=d=>sum(K.cuotas.map(k=>val(d,k)))||0;const pm=d=>val(d,K.ab)||0;const ab=d=>cuo(d)+pm(d);
@@ -1440,7 +1738,7 @@ function inPeriod(k,id,last){
 }
 function renderFlujo(){
   const el=$("#v-flujo");const farm=S.farm;const C=cashData(farm);
-  if(!C.months.length){el.innerHTML=`<div class="empty"><h2>Aún no hay flujo mensual</h2><p>Importa tu archivo de Flujo en la pestaña <b>Importar Excel</b> para ver ingresos, egresos, préstamos y bancos mes a mes.</p><button class="btn primary" id="goImp">Ir a Importar Excel</button></div>`;$("#goImp").addEventListener("click",()=>setTab("importar"));return}
+  if(!C.months.length){el.innerHTML=`<div class="empty"><h2>Aún no hay flujo mensual</h2><p>Importa tu archivo “Flujo ASI” en la pestaña <b>Importar Excel</b> para ver ingresos, egresos, préstamos y bancos mes a mes.</p><button class="btn primary" id="goImp">Ir a Importar Excel</button></div>`;$("#goImp").addEventListener("click",()=>setTab("importar"));return}
   const last=C.months[C.months.length-1].month;const pers=cashPeriods(C.months);if(!S.cashPer||!pers.some(p=>p.id===S.cashPer))S.cashPer="12";
   const ms=C.months.filter(d=>inPeriod(d.month,S.cashPer,last));
   const inc=sum(ms.map(d=>C.val(d,C.K.inc))),exp=sum(ms.map(d=>C.val(d,C.K.exp))),cuo=sum(ms.map(C.cuo)),pmv=sum(ms.map(C.pm)),ab=(cuo||0)+(pmv||0);
@@ -1498,23 +1796,21 @@ function eqv(a,b){
   return false;
 }
 function flockBase(farm,n){const id=farm+"-"+String(n).padStart(2,"0");const E=S.flocks.get(id);
-  const d=E?stripId(norm(JSON.parse(JSON.stringify(E)))):stripId(norm({farm,num:n,cycle:cycOf(n,farm),notes:""}));return {id,E,d}}
+  const d=E?stripId(norm(JSON.parse(JSON.stringify(E)))):stripId(norm({farm,num:n,cycle:Math.floor((n-1)/7)+1,notes:""}));return {id,E,d}}
 function planComparativo(farm,P){
   const plan=[];
   P.flocks.forEach(f=>{const {id,E,d}=flockBase(farm,f.num);const old=JSON.parse(JSON.stringify(d));
     d.farm=farm;d.num=f.num;if(f.start)d.start=f.start;if(f.harvest)d.harvest=f.harvest;
-    ["placed","w","mc","fcrW","hAge","left"].forEach(k=>d[k]=f[k]);if(!ok(d.cycle))d.cycle=cycOf(f.num,farm);
+    ["placed","w","mc","hAge","left"].forEach(k=>d[k]=f[k]);if(!ok(d.cycle))d.cycle=Math.floor((f.num-1)/7)+1;
     const what=[];if(!E)what.push("nueva");else{
       if(!eqv(old.placed,d.placed))what.push("aves recibidas");
-      for(let n=0;n<7;n++){if(!eqv(old.w[n],d.w[n]))what.push(n?`peso S${n}`:"peso de recepción");if(n&&!eqv(old.mc[n],d.mc[n]))what.push(`mortalidad S${n}`);if(n&&!eqv(old.fcrW[n],d.fcrW[n]))what.push(`conversión S${n}`)}
+      for(let n=0;n<7;n++){if(!eqv(old.w[n],d.w[n]))what.push(n?`peso S${n}`:"peso de recepción");if(n&&!eqv(old.mc[n],d.mc[n]))what.push(`mortalidad S${n}`)}
       if(!eqv(old.hAge,d.hAge)||!eqv(old.left,d.left))what.push("cosecha");if(old.start!==d.start||old.harvest!==d.harvest)what.push("fechas")}
     if(!E||what.length)plan.push({col:"flocks",id,body:d,grp:"Parvadas",lab:`Parvada ${f.num}`,what,isNew:!E})});
   return plan;
 }
 function planFlujo(farm,P){
   const plan=[];
-  /* liquidación de la hoja Graficos: año y parvada Cargill → número corrido de esta granja */
-  P={...P,close:JSON.parse(JSON.stringify(P.close))};(P.graf||[]).forEach(x=>{const n=cycStart(x.a,farm)-1+x.p;const o=P.close[n]=P.close[n]||{};if(ok(x.liq))o.liq=x.liq;if(ok(x.perBird))o.perBird=x.perBird});
   Object.entries(P.close).forEach(([n,cl])=>{n=+n;const {id,E,d}=flockBase(farm,n);const old=JSON.parse(JSON.stringify(d.close||{}));
     const nc=Object.assign({},old,cl);if(cl.costs)nc.costs=cl.costs;d.close=nc;
     if(!E||!eqv(old,nc)){const what=[];if(!E)what.push("nueva (solo cierre)");else{const ks=Object.keys(nc).filter(k=>!eqv(old[k],nc[k]));
@@ -1542,7 +1838,7 @@ function renderImportar(){
    <p class="note" style="margin:0">Se actualizan las parvadas y los meses que traiga el archivo y se agregan los nuevos. No se borra nada. Antes de guardar ves la lista de cambios.</p></div>
   <div class="grid2 eq">
    ${zone("comp","1 · Comparativo (producción)","Archivo tipo “Comparativo1”: hoja <b>Pesos</b> con aves recibidas, pesos semanales, mortalidad acumulada, edad de cosecha y pollos quedados por galera.")}
-   ${zone("flujo","2 · Flujo (dinero)","Archivo tipo “FLUJO ASI” o “Flujo PIO PIO”: cierre de cada parvada, precios y bonos, <b>Costo x PV</b>, <b>Detalle de pago</b>, <b>Flujo Mensual detallado</b> y <b>Comparativo anual</b> o <b>Analisis</b>.")}
+   ${zone("flujo","2 · Flujo ASI (dinero)","Archivo tipo “FLUJO ASI”: cierre de cada parvada, precios y bonos, <b>Costo x PV</b>, <b>Detalle de pago</b>, <b>FLUJO Mensual detallado</b> y <b>Comparativo anual</b>.")}
   </div><div id="impOut"></div>`;
   el.innerHTML=html;
   const farmSel=$("#impFarm");farmSel.addEventListener("change",()=>{I.farm=farmSel.value;rebuildPlan();showPlan()});
@@ -1558,7 +1854,7 @@ async function readFile(slot,file){
     if(!k)throw new Error("No reconozco este archivo: no tiene la hoja “Pesos” ni “FLUJO Mensual detallado”.");
     const target=k==="comparativo"?"comp":"flujo";
     const parsed=k==="comparativo"?await XP.parseComparativo(wb):await XP.parseFlujo(wb);
-    I[target]={name:file.name,parsed};if(target!==slot)toast(`Lo cargué como ${target==="comp"?"Comparativo":"Flujo"}, que es lo que contiene.`);
+    I[target]={name:file.name,parsed};if(target!==slot)toast(`Lo cargué como ${target==="comp"?"Comparativo":"Flujo ASI"}, que es lo que contiene.`);
     ["comp","flujo"].forEach(s=>{const e=$("#s-"+s);if(e&&I[s])e.innerHTML=`Leído: <b>${esc(I[s].name)}</b>`});
     rebuildPlan();showPlan();
   }catch(e){st.innerHTML=`<span class="dn">${esc(e.message||String(e))}</span>`}
@@ -1592,17 +1888,21 @@ async function runImport(){
 
 /* ---------- CAPTURA ---------- */
 const MODES=[{id:0,lab:"Recepción"},{id:1,lab:"S1"},{id:2,lab:"S2"},{id:3,lab:"S3"},{id:4,lab:"S4"},{id:5,lab:"S5"},{id:6,lab:"S6"},{id:"h",lab:"Cosecha"},{id:"c",lab:"Cierre y liquidación"}];
+const LIQ_FIELDS=[["doc","Número de liquidación","text"],["date","Fecha de liquidación","date"],["tc","Tipo de cambio C$ por US$",0.0001],
+  ["base","Pago base C$",0.01],["conv","Bono conversión C$",0.01],["inv","Bono inversión C$",0.01],["mejora","Bono mejora C$",0.01],["total","Pago total C$",0.01],
+  ["quim","Químicos y consumos C$ (antes del reconocimiento)",0.01],["recon","Reconocimiento C$ (lo que Cargill asume)",0.01],["cons","Consumos netos C$",0.01],
+  ["preIva","Total antes de IVA C$",0.01],["iva","IVA 15% C$",0.01],["neto","Pago neto C$",0.01],["ir","Retención IR 2% C$ (vacío = se calcula)",0.01]];
 const CLOSE_FIELDS=[
   ["birds","Aves recibidas",1],["dead","Aves muertas",1],["alive","Aves vivas",1],["days","Días de engorde",0.01],["sanitary","Días de vaciado sanitario",1],
   ["wThin","Peso de raleo (lb)",0.001],["thinPct","% de raleo (0 a 1)",0.0001],["wHarvest","Peso a cosecha (lb)",0.001],["lbs","Libras producidas",1],
   ["fcr","Conversión alimenticia",0.0001],["feedQQ","Alimento consumido (qq)",0.01],["eef","IEP (índice de eficiencia)",0.01],
   ["pBase","Pago base ($/lb)",0.0001],["bConv","Bono conversión ($/lb)",0.0001],["bMejora","Bono mejora ($/lb)",0.0001],["bInv","Bono inversión ($/lb)",0.0001],
-  ["price","Precio según tabla ($/lb)",0.0001],["liq","Precio liquidado ($/lb)",0.00001],["hab","Químicos Cargill descontados ($)",0.01],["cost","Costo operativo total ($)",0.01]
+  ["price","Precio según tabla ($/lb)",0.0001],["liq","Precio liquidado ($/lb)",0.00001],["cost","Costo operativo total ($)",0.01]
 ];
 function colsFor(mode){
   if(mode===0)return [{k:"placed",lab:"Aves recibidas",step:"1"},{k:"w0",lab:"Peso recepción (lb)",step:"0.001"}];
   if(mode==="h")return [{k:"hAge",lab:"Edad cosecha (días)",step:"0.01"},{k:"hWt",lab:"Peso cosecha (lb)",step:"0.01"},{k:"left",lab:"Pollos quedados",step:"1"}];
-  return [{k:"w",lab:"Peso prom (lb)",step:"0.001"},{k:"mc",lab:"Mortalidad acum. (%)",step:"0.01"},{k:"fcrW",lab:"Conversión",step:"0.001"},{k:"f",lab:"Alimento (qq)",step:"0.1"}];
+  return [{k:"w",lab:"Peso prom (lb)",step:"0.001"},{k:"mc",lab:"Mortalidad acum. (%)",step:"0.01"},{k:"f",lab:"Alimento (qq)",step:"0.1"}];
 }
 function getCell(f,mode,k,g){if(["placed","hAge","hWt","left"].includes(k))return f[k][g];if(k==="w0")return f.w[0][g];return f[k][mode][g]}
 function setCell(f,mode,k,g,v){if(["placed","hAge","hWt","left"].includes(k)){f[k][g]=v;return}if(k==="w0"){f.w[0][g]=v;return}f[k][mode][g]=v}
@@ -1624,10 +1924,16 @@ function renderCaptura(){
   if(mode==="c"){
     html+=`<p class="note">Datos del cierre que entrega Cargill. Si dejas algo vacío, el sistema lo calcula con los datos semanales cuando puede.</p>
     <div class="close-form">${CLOSE_FIELDS.map(([k,l,st])=>`<label class="field">${l}<input type="number" step="${st}" id="cl-${k}" data-ck="${k}" value="${ok(d.close[k])?d.close[k]:""}"></label>`).join("")}</div>
-    <div class="row"><button class="btn" id="fillTab">Calcular precio con tabla 2025</button><span class="src" id="tabMsg"></span></div>`;
+    <div class="row"><button class="btn" id="fillTab">Calcular precio con la tabla de su fecha</button><span class="src" id="tabMsg"></span></div>
+    <h3 style="margin-top:8px">Liquidación en córdobas (documento de Cargill)</h3>
+    <p class="note">Copia los montos del documento de liquidación. Con el pago total y el tipo de cambio, el panel calcula el precio por libra, revisa contra la tabla y compara el depósito con el flujo mensual. Si llenas esto, puedes dejar vacíos los precios en dólares de arriba.</p>
+    <div class="close-form">${LIQ_FIELDS.map(([k,l,st])=>{const v=(d.close.liqC||{})[k];const tp=st==="text"?"text":st==="date"?"date":"number";return `<label class="field">${l}<input type="${tp}" ${tp==="number"?`step="${st}"`:""} data-lk="${k}" value="${v!==undefined&&v!==null?esc(v):""}"></label>`}).join("")}</div>
+    <h3 style="margin-top:8px">Libras entregadas por galera</h3>
+    <div class="close-form">${Array.from({length:G},(_,g)=>`<label class="field">G${g+1}<input type="number" step="0.01" data-lg="${g}" value="${d.lbsG&&ok(d.lbsG[g])?d.lbsG[g]:""}"></label>`).join("")}</div>
+    <p class="src" id="lgSum"></p>`;
   } else {
     const cols=colsFor(mode);
-    html+=`<p class="note">${mode===0?"Día 1: aves recibidas y peso promedio de recepción por galera.":mode==="h"?"Al cosechar: edad promedio de cosecha, peso de cosecha si lo tienes, y pollos que quedaron sin cosechar.":`Semana ${mode} (día ${mode*7}): peso promedio del muestreo, mortalidad acumulada en % desde el día 1, conversión acumulada (como en tu Excel) y, si lo tienes, alimento de la semana en quintales.`}</p>
+    html+=`<p class="note">${mode===0?"Día 1: aves recibidas y peso promedio de recepción por galera.":mode==="h"?"Al cosechar: edad promedio de cosecha, peso de cosecha si lo tienes, y pollos que quedaron sin cosechar.":`Semana ${mode} (día ${mode*7}): peso promedio del muestreo, mortalidad acumulada en % desde el día 1 (como en tu Excel) y alimento de la semana en quintales.`}</p>
     <div class="scroll cap-grid"><table><thead><tr><th>Galera</th>${cols.map(cl=>`<th>${cl.lab}</th>`).join("")}${mode!==0&&mode!=="h"?"<th>Muertes est.</th>":""}</tr></thead><tbody>
     ${Array.from({length:G},(_,g)=>`<tr><td>G${g+1}</td>${cols.map(cl=>{const v=getCell(d,mode,cl.k,g);return `<td><input type="number" inputmode="decimal" step="${cl.step}" min="0" id="c-${cl.k}-${g}" data-k="${cl.k}" data-g="${g}" value="${ok(v)?v:""}" aria-label="${cl.lab} G${g+1}"></td>`}).join("")}${mode!==0&&mode!=="h"?`<td class="num" id="de-${g}"></td>`:""}</tr>`).join("")}
     <tr class="total"><td>Total / prom</td>${cols.map(cl=>`<td class="num" id="t-${cl.k}"></td>`).join("")}${mode!==0&&mode!=="h"?`<td class="num" id="t-de"></td>`:""}</tr></tbody></table></div>
@@ -1639,10 +1945,15 @@ function renderCaptura(){
   el.innerHTML=html;
   const dirty=()=>{$("#dirty").textContent=JSON.stringify(stripId(d))!==JSON.stringify(stripId(norm(f)))?"Hay cambios sin guardar":""};
   if(mode==="c"){
-    el.querySelectorAll("[data-ck]").forEach(inp=>inp.addEventListener("input",()=>{const v=inp.value===""?null:Number(inp.value);if(ok(v))d.close[inp.dataset.ck]=v;else delete d.close[inp.dataset.ck];if(inp.dataset.ck==="hab")delete d.close.habEst;dirty()}));
-    $("#fillTab").addEventListener("click",()=>{const cc=calc(d);const p=pay(cc.wFinal,cc.fcr);if(!p){$("#tabMsg").textContent="Falta peso a cosecha y FCR.";return}
+    el.querySelectorAll("[data-ck]").forEach(inp=>inp.addEventListener("input",()=>{const v=inp.value===""?null:Number(inp.value);if(ok(v))d.close[inp.dataset.ck]=v;else delete d.close[inp.dataset.ck];dirty()}));
+    el.querySelectorAll("[data-lk]").forEach(inp=>inp.addEventListener("input",()=>{const k=inp.dataset.lk;const q=d.close.liqC=Object.assign({},d.close.liqC||{});
+      const v=inp.type==="number"?(inp.value===""?null:Number(inp.value)):inp.value.trim();if(v===null||v===""||(inp.type==="number"&&!ok(v)))delete q[k];else q[k]=v;
+      if(!Object.keys(q).length)delete d.close.liqC;dirty()}));
+    const lgSum=()=>{const t=sum(d.lbsG||[]);$("#lgSum").textContent=ok(t)?`Suma de galeras: ${fx(t,2)} lb${ok(d.close.lbs)?` · libras del cierre ${fi(d.close.lbs)}`:""}`:""};lgSum();
+    el.querySelectorAll("[data-lg]").forEach(inp=>inp.addEventListener("input",()=>{if(!d.lbsG)d.lbsG=Array(G).fill(null);const v=inp.value===""?null:Number(inp.value);d.lbsG[+inp.dataset.lg]=ok(v)?v:null;if(!vals(d.lbsG).length)delete d.lbsG;lgSum();dirty()}));
+    $("#fillTab").addEventListener("click",()=>{const cc=calc(d);const p=payWith(tableFor(d.start),cc.wFinal,cc.fcr);if(!p){$("#tabMsg").textContent="Falta peso a cosecha y FCR.";return}
       Object.assign(d.close,{pBase:p.base,bConv:p.bfcr,bMejora:p.mejora,bInv:p.inv,price:+p.total.toFixed(5)});
-      ["pBase","bConv","bMejora","bInv","price"].forEach(k=>{$("#cl-"+k).value=d.close[k]});$("#tabMsg").textContent=`Tabla 2025: peso ${fx(cc.wFinal,2)} lb, conversión ${fx(p.fcrKey,2)} → ${usd(p.total,4)}/lb`;dirty()});
+      ["pBase","bConv","bMejora","bInv","price"].forEach(k=>{$("#cl-"+k).value=d.close[k]});$("#tabMsg").textContent=`Tabla ${p.T.lab}: peso ${fx(cc.wFinal,2)} lb, conversión ${fx(p.fcrKey,2)} → ${usd(p.total,4)}/lb`;dirty()});
   } else {
     const cols=colsFor(mode);
     const totals=()=>{cols.forEach(cl=>{const a=Array.from({length:G},(_,g)=>getCell(d,mode,cl.k,g));const isSum=["placed","f","left"].includes(cl.k);
@@ -1709,7 +2020,7 @@ function fillPickers(){
   const sl=$("#flockSel");sl.innerHTML=ff.length?ff.slice().reverse().map(f=>`<option value="${f._id}" ${f._id===S.sel?"selected":""}>${flockName(f)} · ${fdShort(f.start)}</option>`).join(""):`<option>Sin parvadas</option>`;
   sl.disabled=!ff.length;
 }
-const VIEWS={panel:renderPanel,anual:renderAnual,flujo:renderFlujo,importar:renderImportar,reporte:renderReporte,semanal:renderSemanal,comparativo:renderComparativo,costos:renderCostos,pagos:renderPagos,apendice:renderApendice,captura:renderCaptura};
+const VIEWS={panel:renderPanel,anual:renderAnual,flujo:renderFlujo,importar:renderImportar,reporte:renderReporte,semanal:renderSemanal,comparativo:renderComparativo,costos:renderCostos,liquidaciones:renderLiquidaciones,energia:renderEnergia,pagos:renderPagos,apendice:renderApendice,captura:renderCaptura};
 function render(){
   fillPickers();
   if(!VIEWS[S.tab])S.tab="panel";
@@ -1718,9 +2029,9 @@ function render(){
   VIEWS[S.tab]();
   const g=$("#goCap");if(g)g.addEventListener("click",()=>setTab("captura"));
 }
-function setTab(t){S.tab=t;try{localStorage.setItem("cg.tab",t)}catch(e){}render();window.scrollTo({top:0})}
+function setTab(t){S.tab=t;try{localStorage.setItem("cg.tab2",t)}catch(e){}render();window.scrollTo({top:0})}
 document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>setTab(t.dataset.tab)));
-$("#farmSel").addEventListener("change",e=>{S.farm=e.target.value;S.sel=null;S.gWeek=null;S.draft=null;S.sim=null;S.costCyc=null;try{localStorage.setItem("cg.farm",S.farm)}catch(_){}render()});
+$("#farmSel").addEventListener("change",e=>{S.farm=e.target.value;S.sel=null;S.gWeek=null;S.draft=null;S.sim=null;try{localStorage.setItem("cg.farm",S.farm)}catch(_){}render()});
 $("#flockSel").addEventListener("change",e=>{S.sel=e.target.value;S.gWeek=null;S.draft=null;S.confirmDel=false;render()});
 
 /* ---------- datos ---------- */
@@ -1740,9 +2051,12 @@ render();
     err=>{$("#syncState").textContent="Error de conexión: "+(err.message||err.code)});
   db.collection("payments").onSnapshot(snap=>{const m=new Map();snap.docs.forEach(d=>{if(d.exists){const o=Object.assign({},d.data());o._id=d.id;m.set(d.id,o)}});S.pay=m;if(gotF&&(S.tab==="pagos"||S.tab==="costos"))rerender()},()=>{});
   db.collection("cashflow").onSnapshot(snap=>{const m=new Map();snap.docs.forEach(d=>{if(d.exists){const o=Object.assign({},d.data());o._id=d.id;m.set(d.id,o)}});S.cash=m;if(gotF&&(S.tab==="flujo"||S.tab==="panel"))rerender()},()=>{});
+  db.collection("energy").onSnapshot(snap=>{const m=new Map();snap.docs.forEach(d=>{if(d.exists){const o=Object.assign({},d.data());o._id=d.id;m.set(d.id,o)}});S.energy=m;if(gotF&&S.tab==="energia")rerender()},()=>{});
   db.collection("years").onSnapshot(snap=>{const m=new Map();snap.docs.forEach(d=>{if(d.exists)m.set(d.id,d.data())});S.years=m;gotY=true;rerender()},()=>{});
 })();
 })();
 </script>
+
+
 </body>
 </html>

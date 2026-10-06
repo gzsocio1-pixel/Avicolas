@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Usuarios · Control de Galeras</title>
+<link rel="icon" href="/icono.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="/estilo-base.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="brand"><div class="mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-ink)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/><path d="M9 20v-5h6v5"/></svg></div>
+      <div><h1 id="title">Mi cuenta</h1><div class="muted" style="font-size:12.5px" id="whoami"></div></div></div>
+    <div class="row"><a class="btn" href="/">Volver al panel</a><button class="btn" id="out">Salir</button></div>
+  </div>
+
+  <div class="card">
+    <h3>Cambiar mi contraseña</h3>
+    <div class="row">
+      <label class="field">Contraseña actual<input type="password" id="pwCur" autocomplete="current-password"></label>
+      <label class="field">Contraseña nueva (8 o más caracteres)<input type="password" id="pwNew" autocomplete="new-password"></label>
+      <button class="btn primary" id="pwGo">Cambiar contraseña</button>
+    </div>
+    <div class="msg" id="pwMsg" hidden></div>
+  </div>
+
+  <div id="admin" hidden>
+    <div class="card" style="margin-bottom:16px">
+      <h3>Usuarios del equipo</h3>
+      <p class="note"><b>Administrador</b>: ve, captura, importa y maneja usuarios y respaldos. <b>Editor</b>: ve, captura e importa. <b>Solo lectura</b>: solo ve el panel.</p>
+      <div class="scroll"><table><thead><tr><th>Usuario</th><th>Nombre</th><th>Permiso</th><th>Creado</th><th></th></tr></thead><tbody id="users"></tbody></table></div>
+      <div class="msg" id="uMsg" hidden></div>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <h3>Agregar usuario</h3>
+      <div class="row">
+        <label class="field">Usuario (sin espacios)<input id="nU" autocomplete="off"></label>
+        <label class="field">Nombre<input id="nN" autocomplete="off"></label>
+        <label class="field">Contraseña inicial<input id="nP" type="text" autocomplete="off"></label>
+        <label class="field">Permiso<select id="nR"><option value="viewer">Solo lectura</option><option value="editor">Editor</option><option value="admin">Administrador</option></select></label>
+        <button class="btn primary" id="nGo">Agregar</button>
+      </div>
+      <p class="note">Entrega la contraseña inicial a la persona y pídele que la cambie en “Mi cuenta”.</p>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <h3>Respaldo de los datos</h3>
+      <p class="note">Descarga una copia completa de parvadas, cierres, costos, pagos y flujo mensual. Guárdala en un lugar seguro. “Restaurar” carga un respaldo: reemplaza los documentos que traiga y no borra los demás.</p>
+      <div class="row"><button class="btn primary" id="bkDown">Descargar respaldo</button>
+        <label class="btn" for="bkFile">Restaurar desde respaldo…</label><input type="file" id="bkFile" accept=".json" hidden></div>
+      <div class="msg" id="bkMsg" hidden></div>
+    </div>
+    <div class="card">
+      <h3>Últimos cambios</h3>
+      <div class="scroll"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Qué</th></tr></thead><tbody id="chg"></tbody></table></div>
+    </div>
+  </div>
+</div>
+<script>
+(async function(){
+  const $=s=>document.querySelector(s);
+  const ROLE={admin:"Administrador",editor:"Editor",viewer:"Solo lectura"};
+  const COL={flocks:"Parvada",years:"Resultado anual",payments:"Pagos del mes",cashflow:"Flujo mensual",energy:"Factura de energía",varios:"Varios datos"};
+  const ACC={guardar:"Guardó",eliminar:"Eliminó",importar:"Importó"};
+  const txt=(el,s)=>{el.textContent=s;return el};
+  async function api(p,o={}){const r=await fetch(p,{credentials:"same-origin",headers:{"Content-Type":"application/json"},...o});if(r.status===401){location.href="/login";throw new Error("Sesión cerrada")}const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b.error||"Error "+r.status);return b}
+  function show(el,ok,m){el.hidden=false;el.className="msg "+(ok?"good":"bad");el.textContent=m}
+  const fd=s=>{const d=new Date(s);return d.toLocaleDateString("es-NI",{day:"numeric",month:"short",year:"numeric"})+" "+d.toLocaleTimeString("es-NI",{hour:"2-digit",minute:"2-digit"})};
+  const me=(await api("/api/me")).user;
+  txt($("#whoami"),`${me.name} · ${ROLE[me.role]}`);
+  $("#out").addEventListener("click",async()=>{await fetch("/api/logout");location.href="/login"});
+  $("#pwGo").addEventListener("click",async()=>{try{await api("/api/password",{method:"POST",body:JSON.stringify({current:$("#pwCur").value,password:$("#pwNew").value})});$("#pwCur").value=$("#pwNew").value="";show($("#pwMsg"),true,"Contraseña cambiada.")}catch(e){show($("#pwMsg"),false,e.message)}});
+  if(me.role!=="admin")return;
+  $("#admin").hidden=false;txt($("#title"),"Usuarios y respaldo");
+  let pendingDel=null;
+  async function loadUsers(){
+    const {users}=await api("/api/admin/users");const tb=$("#users");tb.innerHTML="";
+    users.forEach(u=>{const tr=document.createElement("tr");
+      const td=()=>tr.appendChild(document.createElement("td"));
+      txt(td(),u.username);txt(td(),u.name||"");
+      const sel=document.createElement("select");Object.entries(ROLE).forEach(([k,v])=>{const o=document.createElement("option");o.value=k;o.textContent=v;if(k===u.role)o.selected=true;sel.appendChild(o)});
+      sel.addEventListener("change",async()=>{try{await api("/api/admin/users/"+u.id,{method:"PUT",body:JSON.stringify({role:sel.value})});show($("#uMsg"),true,`Permiso de ${u.username} actualizado.`)}catch(e){show($("#uMsg"),false,e.message);loadUsers()}});
+      td().appendChild(sel);txt(td(),fd(u.created_at));
+      const act=td();act.style.display="flex";act.style.gap="6px";
+      const rp=document.createElement("button");rp.className="btn";rp.textContent="Nueva contraseña";
+      rp.addEventListener("click",async()=>{const pw=Math.random().toString(36).slice(2,8)+"-"+Math.random().toString(36).slice(2,8);try{await api("/api/admin/users/"+u.id,{method:"PUT",body:JSON.stringify({password:pw})});show($("#uMsg"),true,`Nueva contraseña de ${u.username}: ${pw} — cópiala y entrégasela.`)}catch(e){show($("#uMsg"),false,e.message)}});
+      act.appendChild(rp);
+      if(u.id!==me.id){const del=document.createElement("button");del.className="btn danger";
+        if(pendingDel===u.id){del.textContent="Sí, eliminar";del.addEventListener("click",async()=>{try{await api("/api/admin/users/"+u.id,{method:"DELETE"});pendingDel=null;show($("#uMsg"),true,`Se eliminó ${u.username}.`);loadUsers()}catch(e){show($("#uMsg"),false,e.message)}});
+          const no=document.createElement("button");no.className="btn";no.textContent="Cancelar";no.addEventListener("click",()=>{pendingDel=null;loadUsers()});act.appendChild(no)}
+        else{del.textContent="Eliminar";del.addEventListener("click",()=>{pendingDel=u.id;loadUsers()})}
+        act.appendChild(del)}
+      tb.appendChild(tr)});
+  }
+  async function loadChanges(){
+    const {changes}=await api("/api/admin/changes");const tb=$("#chg");tb.innerHTML="";
+    if(!changes.length){const tr=document.createElement("tr");const td=document.createElement("td");td.colSpan=4;td.className="muted";td.textContent="Todavía no hay cambios registrados.";tr.appendChild(td);tb.appendChild(tr);return}
+    changes.forEach(c=>{const tr=document.createElement("tr");[fd(c.at),c.username||"",ACC[c.action]||c.action,`${COL[c.collection]||c.collection||""}${c.doc_id?" "+c.doc_id:""}${c.n>1?` (${c.n} documentos)`:""}`].forEach(v=>txt(tr.appendChild(document.createElement("td")),v));tb.appendChild(tr)});
+  }
+  $("#nGo").addEventListener("click",async()=>{try{await api("/api/admin/users",{method:"POST",body:JSON.stringify({username:$("#nU").value.trim(),name:$("#nN").value.trim(),password:$("#nP").value,role:$("#nR").value})});show($("#uMsg"),true,`Se agregó ${$("#nU").value.trim()}.`);["#nU","#nN","#nP"].forEach(s=>$(s).value="");loadUsers()}catch(e){show($("#uMsg"),false,e.message)}});
+  $("#bkDown").addEventListener("click",()=>{location.href="/api/admin/backup"});
+  $("#bkFile").addEventListener("change",async e=>{const f=e.target.files[0];if(!f)return;show($("#bkMsg"),true,"Restaurando…");
+    try{const body=await f.text();JSON.parse(body);const r=await api("/api/admin/restore",{method:"POST",body});show($("#bkMsg"),true,`Listo: se restauraron ${r.n} documentos.`);loadChanges()}catch(x){show($("#bkMsg"),false,x.message.includes("JSON")?"Ese archivo no es un respaldo válido.":x.message)}e.target.value=""});
+  loadUsers();loadChanges();
+})();
+</script>
+</body>
+</html>
