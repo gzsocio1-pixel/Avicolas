@@ -1,0 +1,15 @@
+{
+  "name": "control-de-galeras",
+  "version": "1.0.0",
+  "description": "Panel de control avícola: parvadas, costos, pagos y flujo mensual",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "crear-admin": "node scripts/crear-admin.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "pg": "^8.11.3"
+  }
+}
